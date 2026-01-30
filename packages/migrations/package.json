@@ -1,0 +1,19 @@
+{
+  "name": "@decision-copilot/migrations",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "echo 'No build step'",
+    "clean": "echo 'No clean step'",
+    "migrate:down": "migrate-mongo down -f migrate-mongo-config.cjs",
+    "migrate:status": "migrate-mongo status -f migrate-mongo-config.cjs",
+    "migrate:up": "migrate-mongo up -f migrate-mongo-config.cjs",
+    "test": "echo 'No test step'",
+    "typecheck": "echo 'No typecheck step'"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.7",
+    "migrate-mongo": "^11.0.0"
+  }
+}

@@ -1,0 +1,41 @@
+{
+  "name": "decision-copilot",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces",
+    "build:clean": "npm run clean && npm run build",
+    "clean": "npm run clean --workspaces",
+    "dev": "env-cmd -- npm --workspace packages/nextjs run dev",
+    "format": "eslint --fix",
+    "format:package": "sort-package-json ./package.json ./packages/*/package.json",
+    "lint": "eslint",
+    "migrate:down": "npm run migrate:down --workspace packages/migrations",
+    "migrate:status": "npm run migrate:status --workspace packages/migrations",
+    "migrate:up": "npm run migrate:up --workspace packages/migrations",
+    "mongo:install": "cd packages/local/docker-mongodb && env-cmd --file ../../../.env -- docker-compose build",
+    "mongo:remove": "cd packages/local/docker-mongodb && env-cmd --file ../../../.env -- docker-compose down -v",
+    "mongo:start": "cd packages/local/docker-mongodb && env-cmd --file ../../../.env -- docker-compose up -d",
+    "mongo:stop": "cd packages/local/docker-mongodb && env-cmd --file ../../../.env -- docker-compose stop",
+    "start": "npm run dev",
+    "test": "vitest run",
+    "typecheck": "npm run typecheck --workspaces"
+  },
+  "devDependencies": {
+    "env-cmd": "^11.0.0",
+    "eslint": "^9.39.1",
+    "rimraf": "^6.1.0",
+    "sort-package-json": "^3.4.0",
+    "tsx": "^4.20.6",
+    "vite": "^7.2.2",
+    "vitest": "^4.0.9"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=10.0.0"
+  }
+}

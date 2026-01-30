@@ -1,0 +1,19 @@
+name: ${PROJECT_KEY:-decision-copilot}-mongodb
+
+services:
+  mongodb:
+    build: .
+    container_name: ${PROJECT_KEY:-decision-copilot}-mongodb
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: localadmin
+      MONGO_INITDB_ROOT_PASSWORD: localpassword
+      MONGO_INITDB_DATABASE: ${PROJECT_KEY:-decision-copilot}-${PROJECT_ENV:-local}
+    ports:
+      - "${MONGODB_PORT:-27447}:27017"
+    volumes:
+      - mongodb_data:/data/db
+      - mongodb_config:/data/configdb
+
+volumes:
+  mongodb_data:
+  mongodb_config:
