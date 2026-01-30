@@ -10,6 +10,7 @@ import type {
   Posture,
   DecisionRunStatus,
 } from "@/types/decision";
+import { runRiskLens } from "@/lenses/risk";
 
 // ============================================
 // Request Types
@@ -70,19 +71,18 @@ function validateClarificationRequest(req: ClarificationRequest): string | null 
 // Lens Processing (stubs - will integrate AI later)
 // ============================================
 
-async function identifyGaps(intake: DecisionIntake): Promise<LensQuestion[]> {
-  // TODO: Implement AI-powered gap identification
-  // For now, return empty array (no clarification needed)
-  return [];
+function extractClarificationQuestions(lensOutputs: LensOutput[]): LensQuestion[] {
+  // Collect questions from all lens outputs
+  return lensOutputs.flatMap((output) => output.questions_to_answer_next);
 }
 
 async function runLenses(
   intake: DecisionIntake,
-  clarifications: Clarification[]
+  _clarifications: Clarification[]
 ): Promise<LensOutput[]> {
-  // TODO: Implement AI-powered lens analysis
-  // For now, return empty array
-  return [];
+  // Run risk lens (other lenses to be added later)
+  const riskOutput = await runRiskLens(intake);
+  return [riskOutput];
 }
 
 async function synthesizeBrief(
@@ -145,20 +145,20 @@ async function handleIntake(req: InitialRunRequest): Promise<NextResponse> {
     decision_id,
   } as DecisionIntake;
 
-  // Identify gaps that need clarification
-  const clarification_questions = await identifyGaps(intake);
+  // Run lenses to get initial analysis
+  const lens_outputs = await runLenses(intake, []);
+
+  // Extract any clarification questions from lens outputs
+  const clarification_questions = extractClarificationQuestions(lens_outputs);
   const clarification_needed = clarification_questions.length > 0;
 
   let status: DecisionRunStatus;
-  let lens_outputs: LensOutput[] = [];
   let decision_brief: DecisionBrief | undefined;
 
   if (clarification_needed) {
     status = "awaiting_clarification";
   } else {
-    // No clarification needed - run full analysis
-    status = "processing_initial";
-    lens_outputs = await runLenses(intake, []);
+    // No clarification needed - synthesize final brief
     decision_brief = await synthesizeBrief(intake, lens_outputs);
     status = "complete";
   }

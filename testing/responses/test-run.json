@@ -1,0 +1,118 @@
+{
+  "decision_id": "096fc8c8-7548-4802-bd5a-1c15ea5ba9ab",
+  "run_id": "9b35a91d-8618-4fe1-9eb6-b98a03a7a9ce",
+  "status": "awaiting_clarification",
+  "intake": {
+    "situation": "Switching from MongoDB to PostgreSQL",
+    "constraints": "3 months, 2 developers",
+    "posture": "explore",
+    "decision_id": "096fc8c8-7548-4802-bd5a-1c15ea5ba9ab"
+  },
+  "clarification_questions": [
+    {
+      "question_id": "q1",
+      "lens": "risk",
+      "question_text": "What is the current experience level of the developers with PostgreSQL?",
+      "answer_type": "enum",
+      "options": [
+        "Beginner",
+        "Intermediate",
+        "Advanced"
+      ],
+      "required": true
+    },
+    {
+      "question_id": "q2",
+      "lens": "risk",
+      "question_text": "Are there specific MongoDB features currently in use that may not have direct equivalents in PostgreSQL?",
+      "answer_type": "boolean",
+      "required": true
+    },
+    {
+      "question_id": "q3",
+      "lens": "risk",
+      "question_text": "What is the expected growth of data size in the next 1-2 years?",
+      "answer_type": "numeric",
+      "required": true
+    }
+  ],
+  "clarification_needed": true,
+  "clarifications": [],
+  "lens_outputs": [
+    {
+      "lens": "risk",
+      "confidence": "medium",
+      "top_risks": [
+        "Potential for data migration issues, leading to data loss or corruption.",
+        "Inefficiencies due to developers' learning curve with PostgreSQL, affecting project timeline.",
+        "Unexpected performance bottlenecks in PostgreSQL for specific queries or workloads.",
+        "Limited time for adequate testing of the new setup, risking stability after deployment.",
+        "Possible difficulty in replicating MongoDB's features in PostgreSQL, requiring workarounds."
+      ],
+      "assumptions_detected": [
+        "Developers are sufficiently skilled in both MongoDB and PostgreSQL.",
+        "The current workload and data models are compatible with PostgreSQL.",
+        "Three months is a sufficient timeline for migration and testing."
+      ],
+      "blind_spots": [
+        {
+          "area": "Developer skills",
+          "description": "Assuming developers have equal proficiency with PostgreSQL as they do with MongoDB."
+        },
+        {
+          "area": "Feature parity",
+          "description": "Assuming all necessary MongoDB features can be efficiently replicated in PostgreSQL."
+        },
+        {
+          "area": "Timeline",
+          "description": "Assuming the 3-month timeline is realistic without detailed project planning."
+        }
+      ],
+      "tradeoffs": [
+        {
+          "option": "Switching to PostgreSQL",
+          "upside": "Potential for improved data integrity and relational data handling.",
+          "downside": "Risk of significant learning curve and implementation delays."
+        },
+        {
+          "option": "Staying with MongoDB",
+          "upside": "No immediate need for migration, allowing focus on other projects.",
+          "downside": "May not benefit from PostgreSQL's relational capabilities and could face scaling issues with MongoDB."
+        }
+      ],
+      "remaining_uncertainty": [
+        "Developers' current level of experience with PostgreSQL.",
+        "Specific features in MongoDB that are critical and may not have direct equivalents in PostgreSQL.",
+        "Current and expected data size and complexity."
+      ],
+      "questions_to_answer_next": [
+        {
+          "question_id": "q1",
+          "lens": "risk",
+          "question_text": "What is the current experience level of the developers with PostgreSQL?",
+          "answer_type": "enum",
+          "options": [
+            "Beginner",
+            "Intermediate",
+            "Advanced"
+          ],
+          "required": true
+        },
+        {
+          "question_id": "q2",
+          "lens": "risk",
+          "question_text": "Are there specific MongoDB features currently in use that may not have direct equivalents in PostgreSQL?",
+          "answer_type": "boolean",
+          "required": true
+        },
+        {
+          "question_id": "q3",
+          "lens": "risk",
+          "question_text": "What is the expected growth of data size in the next 1-2 years?",
+          "answer_type": "numeric",
+          "required": true
+        }
+      ]
+    }
+  ]
+}

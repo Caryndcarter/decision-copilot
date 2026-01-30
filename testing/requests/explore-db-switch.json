@@ -1,0 +1,8 @@
+{
+  "type": "intake",
+  "intake": {
+    "situation": "Switching from MongoDB to PostgreSQL",
+    "constraints": "3 months, 2 developers",
+    "posture": "explore"
+  }
+}
