@@ -1,6 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
+
+const RUN_RESULT_KEY = "decisionRunResult";
 
 const POSTURES = [
   { value: "explore", label: "Explore" },
@@ -18,14 +21,12 @@ export default function IntakePage() {
   const [unknowns, setUnknowns] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<{ decision_id: string; run_id: string; status: string } | null>(null);
-
+  const router = useRouter();
   const showLeaningDirection = posture === "pressure_test";
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    setResult(null);
     setSubmitting(true);
 
     const intake = {
@@ -50,11 +51,10 @@ export default function IntakePage() {
         return;
       }
 
-      setResult({
-        decision_id: data.decision_id,
-        run_id: data.run_id,
-        status: data.status,
-      });
+      if (typeof window !== "undefined") {
+        sessionStorage.setItem(RUN_RESULT_KEY, JSON.stringify(data));
+      }
+      router.push("/run/result");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
@@ -169,15 +169,6 @@ export default function IntakePage() {
           {error && (
             <div className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-800">
               {error}
-            </div>
-          )}
-
-          {result && (
-            <div className="rounded-lg bg-sky-50 px-4 py-3 text-sm text-sky-900">
-              <p className="font-medium">Run started</p>
-              <p className="mt-1 text-sky-700">
-                Decision: {result.decision_id} · Run: {result.run_id} · Status: {result.status}
-              </p>
             </div>
           )}
 
