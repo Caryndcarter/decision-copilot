@@ -16,21 +16,50 @@ export default function IntakePage() {
   const [leaningDirection, setLeaningDirection] = useState("");
   const [knownsAssumptions, setKnownsAssumptions] = useState("");
   const [unknowns, setUnknowns] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [result, setResult] = useState<{ decision_id: string; run_id: string; status: string } | null>(null);
 
   const showLeaningDirection = posture === "pressure_test";
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    // Design only — storage/processing TBD
-    const payload = {
-      situation,
-      constraints,
+    setError(null);
+    setResult(null);
+    setSubmitting(true);
+
+    const intake = {
+      situation: situation.trim(),
+      constraints: constraints.trim(),
       posture,
       ...(showLeaningDirection && leaningDirection.trim() ? { leaning_direction: leaningDirection.trim() } : {}),
       ...(knownsAssumptions.trim() ? { knowns_assumptions: knownsAssumptions.trim() } : {}),
       ...(unknowns.trim() ? { unknowns: unknowns.trim() } : {}),
     };
-    console.log("Intake (not sent yet):", payload);
+
+    try {
+      const res = await fetch("/api/decision/run", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "intake", intake }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data.error || `Request failed (${res.status})`);
+        return;
+      }
+
+      setResult({
+        decision_id: data.decision_id,
+        run_id: data.run_id,
+        status: data.status,
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Something went wrong");
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -137,12 +166,28 @@ export default function IntakePage() {
             />
           </div>
 
+          {error && (
+            <div className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-800">
+              {error}
+            </div>
+          )}
+
+          {result && (
+            <div className="rounded-lg bg-sky-50 px-4 py-3 text-sm text-sky-900">
+              <p className="font-medium">Run started</p>
+              <p className="mt-1 text-sky-700">
+                Decision: {result.decision_id} · Run: {result.run_id} · Status: {result.status}
+              </p>
+            </div>
+          )}
+
           <div className="pt-2">
             <button
               type="submit"
-              className="w-full rounded-lg bg-sky-600 px-4 py-3 text-sm font-medium text-white shadow-sm hover:bg-sky-700 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2"
+              disabled={submitting}
+              className="w-full rounded-lg bg-sky-600 px-4 py-3 text-sm font-medium text-white shadow-sm hover:bg-sky-700 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              Submit
+              {submitting ? "Submitting…" : "Submit"}
             </button>
           </div>
         </form>
