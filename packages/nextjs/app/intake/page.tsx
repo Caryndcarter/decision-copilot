@@ -61,7 +61,7 @@ const DEMO_SCENARIOS = [
     knowns_assumptions:
       "Our app doesn't use Vercel-specific features that can't be replicated (ISR works with standard Next.js, edge functions can move to Lambda@Edge). We have AWS experience from other projects. I assume CloudFront + ECS can match Vercel's performance. Our CI/CD is already GitHub Actions so deployment changes are manageable.",
     unknowns:
-      "Hidden complexity in replicating Vercel's build pipeline. Whether Lambda@Edge cold starts will hurt performance. True ongoing maintenance burden for ECS (patching, scaling configs, debugging). If the cost projections account for CloudFront bandwidth costs accurately.",
+      "Hidden complexity in replicating Vercel's build pipeline. Whether Lambda@Edge cold starts will hurt performance. True ongoing maintenance burden for ECS (patching, scaling configs, debugging). If the cost projections account for CloudFront bandwidth costs accurately. How we'd handle preview deployments for PRs (Vercel does this automatically). Rollback strategy if a deploy goes bad. Who's on-call when infrastructure breaks at 3am. Whether the $4k/month savings is offset by slower developer velocity.",
   },
 ] as const;
 
