@@ -23,6 +23,7 @@ export type DecisionRunStatus =
   | "processing_initial"
   | "awaiting_clarification"
   | "processing_clarification"
+  | "pending_brief"
   | "complete";
 
 // ============================================

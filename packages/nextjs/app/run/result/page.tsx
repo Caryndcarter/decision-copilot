@@ -84,11 +84,16 @@ function Card({ children, className = "" }: { children: React.ReactNode; classNa
   );
 }
 
+type ClarificationAnswers = Record<string, string | number | boolean>;
+
 export default function RunResultPage() {
   const [result, setResult] = useState<RunResult | null>(null);
   const [rawJson, setRawJson] = useState<string | null>(null);
   const [missing, setMissing] = useState(false);
   const [showRaw, setShowRaw] = useState(false);
+  const [clarificationAnswers, setClarificationAnswers] = useState<ClarificationAnswers>({});
+  const [clarificationSubmitting, setClarificationSubmitting] = useState(false);
+  const [clarificationError, setClarificationError] = useState<string | null>(null);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -139,7 +144,9 @@ export default function RunResultPage() {
       ? "Awaiting clarification"
       : result.status === "complete"
         ? "Complete"
-        : result.status;
+        : result.status === "pending_brief"
+          ? "Lenses complete (brief pending)"
+          : result.status;
 
   return (
     <main className="min-h-screen bg-slate-50">
@@ -172,7 +179,9 @@ export default function RunResultPage() {
                   ? "bg-emerald-100 text-emerald-800"
                   : result.status === "awaiting_clarification"
                     ? "bg-amber-100 text-amber-800"
-                    : "bg-slate-100 text-slate-700"
+                    : result.status === "pending_brief"
+                      ? "bg-sky-100 text-sky-800"
+                      : "bg-slate-100 text-slate-700"
               }`}
             >
               {statusLabel}
@@ -306,25 +315,203 @@ export default function RunResultPage() {
           </div>
         )}
 
+        {/* Clarification form */}
+        {result.clarification_needed &&
+          result.clarification_questions &&
+          result.clarification_questions.length > 0 && (
+            <Card className="mt-6 border-sky-200 bg-sky-50/50">
+              <Section title="Follow-up questions">
+                <p className="mb-4 text-sm text-slate-600">
+                  Answer these to refine the analysis. Then we’ll re-run and show an updated result.
+                </p>
+                <form
+                  onSubmit={async (e) => {
+                    e.preventDefault();
+                    setClarificationError(null);
+                    setClarificationSubmitting(true);
+                    try {
+                      const answers = result.clarification_questions!.map((q) => {
+                        const raw = clarificationAnswers[q.question_id];
+                        let answer: string | number | boolean;
+                        if (q.answer_type === "boolean") {
+                          answer = raw === true || raw === "true" || raw === "yes";
+                        } else if (q.answer_type === "numeric") {
+                          answer = typeof raw === "number" ? raw : Number(raw) ?? 0;
+                        } else {
+                          answer = typeof raw === "string" ? raw : String(raw ?? "");
+                        }
+                        return {
+                          question_id: q.question_id,
+                          lens: q.lens as "risk" | "reversibility" | "people",
+                          answer,
+                          answer_type: q.answer_type as "enum" | "boolean" | "numeric" | "short_text",
+                        };
+                      });
+                      const res = await fetch("/api/decision/run", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                          type: "clarification",
+                          decision_id: result.decision_id,
+                          run_id: result.run_id,
+                          clarification: { clarification_round: 1, answers },
+                        }),
+                      });
+                      const data = await res.json();
+                      if (!res.ok) {
+                        setClarificationError(data.error || `Request failed (${res.status})`);
+                        return;
+                      }
+                      const updated = data as RunResult;
+                      if (typeof window !== "undefined") {
+                        sessionStorage.setItem(RUN_RESULT_KEY, JSON.stringify(updated));
+                      }
+                      setResult(updated);
+                      setRawJson(JSON.stringify(updated, null, 2));
+                    } catch (err) {
+                      setClarificationError(
+                        err instanceof Error ? err.message : "Something went wrong"
+                      );
+                    } finally {
+                      setClarificationSubmitting(false);
+                    }
+                  }}
+                  className="space-y-4"
+                >
+                  {result.clarification_questions.map((q, i) => (
+                    <div key={`${q.lens}-${q.question_id}-${i}`}>
+                      <label
+                        htmlFor={q.question_id}
+                        className="block text-sm font-medium text-slate-700"
+                      >
+                        {q.question_text}
+                        {q.required && <span className="text-red-500"> *</span>}
+                      </label>
+                      {q.answer_type === "enum" && q.options && q.options.length > 0 ? (
+                        <select
+                          id={q.question_id}
+                          required={q.required}
+                          value={String(clarificationAnswers[q.question_id] ?? "")}
+                          onChange={(e) =>
+                            setClarificationAnswers((prev) => ({
+                              ...prev,
+                              [q.question_id]: e.target.value,
+                            }))
+                          }
+                          className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-800 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
+                        >
+                          <option value="">Select…</option>
+                          {q.options.map((opt) => (
+                            <option key={opt} value={opt}>
+                              {opt}
+                            </option>
+                          ))}
+                        </select>
+                      ) : q.answer_type === "boolean" ? (
+                        <select
+                          id={q.question_id}
+                          required={q.required}
+                          value={
+                            clarificationAnswers[q.question_id] === true
+                              ? "yes"
+                              : clarificationAnswers[q.question_id] === false
+                                ? "no"
+                                : ""
+                          }
+                          onChange={(e) =>
+                            setClarificationAnswers((prev) => ({
+                              ...prev,
+                              [q.question_id]: e.target.value === "yes",
+                            }))
+                          }
+                          className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-800 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
+                        >
+                          <option value="">Select…</option>
+                          <option value="yes">Yes</option>
+                          <option value="no">No</option>
+                        </select>
+                      ) : q.answer_type === "numeric" ? (
+                        <input
+                          id={q.question_id}
+                          type="number"
+                          required={q.required}
+                          value={
+                            clarificationAnswers[q.question_id] !== undefined
+                              ? String(clarificationAnswers[q.question_id])
+                              : ""
+                          }
+                          onChange={(e) => {
+                            const v = e.target.value;
+                            setClarificationAnswers((prev) => ({
+                              ...prev,
+                              [q.question_id]: v === "" ? 0 : Number(v),
+                            }));
+                          }}
+                          className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-800 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
+                        />
+                      ) : (
+                        <input
+                          id={q.question_id}
+                          type="text"
+                          required={q.required}
+                          value={String(clarificationAnswers[q.question_id] ?? "")}
+                          onChange={(e) =>
+                            setClarificationAnswers((prev) => ({
+                              ...prev,
+                              [q.question_id]: e.target.value,
+                            }))
+                          }
+                          placeholder="Your answer"
+                          className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-800 placeholder-slate-400 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
+                        />
+                      )}
+                    </div>
+                  ))}
+                  {clarificationError && (
+                    <p className="text-sm text-red-600">{clarificationError}</p>
+                  )}
+                  <button
+                    type="submit"
+                    disabled={clarificationSubmitting}
+                    className="rounded-lg bg-sky-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-sky-700 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2 disabled:opacity-60"
+                  >
+                    {clarificationSubmitting ? "Submitting…" : "Submit answers & re-run analysis"}
+                  </button>
+                </form>
+              </Section>
+            </Card>
+          )}
+
         {/* Decision brief */}
         {result.decision_brief && (
           <div className="mt-6 rounded-lg border border-sky-200 bg-sky-50 p-4 shadow-sm">
             <Section title="Decision brief">
-              <p className="text-slate-800">{result.decision_brief.summary}</p>
-              <p className="mt-3 font-medium text-slate-800">{result.decision_brief.recommendation}</p>
-              {result.decision_brief.key_considerations?.length > 0 && (
-                <ul className="mt-2 list-inside list-disc text-slate-700">
-                  {result.decision_brief.key_considerations.map((k, i) => (
-                    <li key={i}>{k}</li>
-                  ))}
-                </ul>
-              )}
-              {result.decision_brief.next_steps?.length > 0 && (
-                <ul className="mt-2 list-inside list-disc text-slate-700">
-                  {result.decision_brief.next_steps.map((n, i) => (
-                    <li key={i}>{n}</li>
-                  ))}
-                </ul>
+              {result.decision_brief.summary === "Pending implementation" &&
+              result.decision_brief.recommendation === "Pending implementation" &&
+              !result.decision_brief.key_considerations?.length &&
+              !result.decision_brief.next_steps?.length ? (
+                <p className="text-slate-500 italic">
+                  Brief synthesis not yet implemented. Your answers were used to re-run the lenses above; a summarized recommendation will appear here once synthesis is added.
+                </p>
+              ) : (
+                <>
+                  <p className="text-slate-800">{result.decision_brief.summary}</p>
+                  <p className="mt-3 font-medium text-slate-800">{result.decision_brief.recommendation}</p>
+                  {result.decision_brief.key_considerations?.length > 0 && (
+                    <ul className="mt-2 list-inside list-disc text-slate-700">
+                      {result.decision_brief.key_considerations.map((k, i) => (
+                        <li key={i}>{k}</li>
+                      ))}
+                    </ul>
+                  )}
+                  {result.decision_brief.next_steps?.length > 0 && (
+                    <ul className="mt-2 list-inside list-disc text-slate-700">
+                      {result.decision_brief.next_steps.map((n, i) => (
+                        <li key={i}>{n}</li>
+                      ))}
+                    </ul>
+                  )}
+                </>
               )}
             </Section>
           </div>

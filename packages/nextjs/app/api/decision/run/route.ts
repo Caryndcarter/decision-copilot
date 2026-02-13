@@ -80,11 +80,11 @@ function extractClarificationQuestions(lensOutputs: LensOutput[]): LensQuestion[
 
 async function runLenses(
   intake: DecisionIntake,
-  _clarifications: Clarification[]
+  clarifications: Clarification[]
 ): Promise<LensOutput[]> {
   const [riskOutput, reversibilityOutput] = await Promise.all([
-    runRiskLens(intake),
-    runReversibilityLens(intake),
+    runRiskLens(intake, clarifications),
+    runReversibilityLens(intake, clarifications),
   ]);
   return [riskOutput, reversibilityOutput];
 }
@@ -100,6 +100,15 @@ async function synthesizeBrief(
     key_considerations: [],
     next_steps: [],
   };
+}
+
+function isStubBrief(brief: DecisionBrief): boolean {
+  return (
+    brief.summary === "Pending implementation" &&
+    brief.recommendation === "Pending implementation" &&
+    (brief.key_considerations?.length ?? 0) === 0 &&
+    (brief.next_steps?.length ?? 0) === 0
+  );
 }
 
 // ============================================
@@ -156,9 +165,8 @@ async function handleIntake(req: InitialRunRequest): Promise<NextResponse> {
   if (clarification_needed) {
     status = "awaiting_clarification";
   } else {
-    // No clarification needed - synthesize final brief
     decision_brief = await synthesizeBrief(intake, lens_outputs);
-    status = "complete";
+    status = isStubBrief(decision_brief) ? "pending_brief" : "complete";
   }
 
   const result: DecisionRunResult = {
@@ -215,7 +223,7 @@ async function handleClarification(req: ClarificationRequest): Promise<NextRespo
 
   existingRun.lens_outputs = lens_outputs;
   existingRun.decision_brief = decision_brief;
-  existingRun.status = "complete";
+  existingRun.status = isStubBrief(decision_brief) ? "pending_brief" : "complete";
   existingRun.clarification_needed = false;
   existingRun.clarification_questions = [];
 
