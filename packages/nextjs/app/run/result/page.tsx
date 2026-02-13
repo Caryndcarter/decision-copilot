@@ -275,7 +275,7 @@ export default function RunResultPage() {
         {reversibilityLens && (
           <div className="mt-6 space-y-6">
             {reversibilityLens.irreversible_steps && reversibilityLens.irreversible_steps.length > 0 && (
-              <Card className="border-amber-200 bg-amber-50/30">
+              <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 shadow-sm">
                 <Section title="Irreversible steps">
                   <p className="mb-2 text-sm text-slate-600">
                     Steps or commitments that would be hard or impossible to undo.
@@ -286,11 +286,11 @@ export default function RunResultPage() {
                     ))}
                   </ul>
                 </Section>
-              </Card>
+              </div>
             )}
 
             {reversibilityLens.safe_to_try_first && reversibilityLens.safe_to_try_first.length > 0 && (
-              <Card className="border-emerald-200 bg-emerald-50/30">
+              <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 shadow-sm">
                 <Section title="Safe to try first">
                   <p className="mb-2 text-sm text-slate-600">
                     Low-commitment steps or experiments you could try with minimal downside.
@@ -301,14 +301,14 @@ export default function RunResultPage() {
                     ))}
                   </ul>
                 </Section>
-              </Card>
+              </div>
             )}
           </div>
         )}
 
         {/* Decision brief */}
         {result.decision_brief && (
-          <Card className="mt-6 border-sky-200 bg-sky-50/30">
+          <div className="mt-6 rounded-lg border border-sky-200 bg-sky-50 p-4 shadow-sm">
             <Section title="Decision brief">
               <p className="text-slate-800">{result.decision_brief.summary}</p>
               <p className="mt-3 font-medium text-slate-800">{result.decision_brief.recommendation}</p>
@@ -327,7 +327,7 @@ export default function RunResultPage() {
                 </ul>
               )}
             </Section>
-          </Card>
+          </div>
         )}
 
         {/* Raw JSON toggle */}
