@@ -49,6 +49,20 @@ const DEMO_SCENARIOS = [
     unknowns:
       "Whether she'll accept an ops hire as support vs. see it as undermining her. If the real problem is her or the reps she hired. How the board will react to anything short of replacement.",
   },
+  {
+    id: "vercel-to-aws",
+    label: "Vercel → AWS migration",
+    situation:
+      "We're evaluating whether to migrate our Next.js app from Vercel to self-hosted on AWS (ECS + CloudFront). Vercel costs are growing fast — we're at $1,800/month and projected to hit $5k/month in 6 months as traffic scales. Self-hosted would cost roughly $600/month at current traffic but requires setup and maintenance.",
+    constraints:
+      "Two engineers can dedicate 2 weeks to migration. Need zero-downtime cutover. Currently using Vercel's edge functions, image optimization, and analytics. Page load times must stay under 200ms.",
+    posture: "surface_risks" as const,
+    leaning_direction: "",
+    knowns_assumptions:
+      "Our app doesn't use Vercel-specific features that can't be replicated (ISR works with standard Next.js, edge functions can move to Lambda@Edge). We have AWS experience from other projects. I assume CloudFront + ECS can match Vercel's performance. Our CI/CD is already GitHub Actions so deployment changes are manageable.",
+    unknowns:
+      "Hidden complexity in replicating Vercel's build pipeline. Whether Lambda@Edge cold starts will hurt performance. True ongoing maintenance burden for ECS (patching, scaling configs, debugging). If the cost projections account for CloudFront bandwidth costs accurately.",
+  },
 ] as const;
 
 export default function IntakePage() {
