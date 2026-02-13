@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 
 const RUN_RESULT_KEY = "decisionRunResult";
 
@@ -120,20 +121,63 @@ const POSTURE_LABELS: Record<string, string> = {
   generate_alternatives: "Generate alternatives",
 };
 
+const CLARIFICATION_SUBMITTING_STEPS = [
+  "Re-running risk lens…",
+  "Re-running reversibility…",
+  "Re-running people lens…",
+  "Synthesizing brief…",
+];
+
 function postureLabel(posture: string): string {
   return POSTURE_LABELS[posture] ?? posture.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-export default function RunResultPage() {
+function RunResultContent() {
+  const searchParams = useSearchParams();
   const [result, setResult] = useState<RunResult | null>(null);
   const [rawJson, setRawJson] = useState<string | null>(null);
   const [missing, setMissing] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [showRaw, setShowRaw] = useState(false);
   const [clarificationAnswers, setClarificationAnswers] = useState<ClarificationAnswers>({});
   const [clarificationSubmitting, setClarificationSubmitting] = useState(false);
+  const [clarificationSubmittingStep, setClarificationSubmittingStep] = useState(0);
   const [clarificationError, setClarificationError] = useState<string | null>(null);
 
+  // Cycle through progress steps every 3s while clarification is submitting
   useEffect(() => {
+    if (!clarificationSubmitting) return;
+    const interval = setInterval(() => {
+      setClarificationSubmittingStep((prev) => (prev + 1) % CLARIFICATION_SUBMITTING_STEPS.length);
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [clarificationSubmitting]);
+
+  // Load run: from ?run_id=xxx (DB) or from sessionStorage
+  useEffect(() => {
+    const run_id = searchParams.get("run_id");
+    if (run_id?.trim()) {
+      setLoadError(null);
+      fetch(`/api/decision/run?run_id=${encodeURIComponent(run_id.trim())}`)
+        .then(async (res) => {
+          const data = await res.json();
+          if (!res.ok) {
+            setLoadError(data.error || "Failed to load run");
+            setMissing(true);
+            return;
+          }
+          setResult(data as RunResult);
+          setRawJson(JSON.stringify(data, null, 2));
+          if (typeof window !== "undefined") {
+            sessionStorage.setItem(RUN_RESULT_KEY, JSON.stringify(data));
+          }
+        })
+        .catch(() => {
+          setLoadError("Failed to load run");
+          setMissing(true);
+        });
+      return;
+    }
     if (typeof window === "undefined") return;
     const raw = sessionStorage.getItem(RUN_RESULT_KEY);
     if (!raw) {
@@ -147,14 +191,16 @@ export default function RunResultPage() {
     } catch {
       setMissing(true);
     }
-  }, []);
+  }, [searchParams]);
 
   if (missing) {
     return (
       <main className="min-h-screen bg-slate-50">
         <div className="mx-auto max-w-2xl px-6 py-12">
           <h1 className="text-2xl font-semibold text-slate-900">Run result</h1>
-          <p className="mt-4 text-slate-600">No run result in this session. Start from the intake form.</p>
+          <p className="mt-4 text-slate-600">
+            {loadError ?? "No run result in this session. Start from the intake form."}
+          </p>
           <p className="mt-6">
             <Link href="/intake" className="text-sky-600 underline hover:text-sky-700">
               Go to intake →
@@ -415,6 +461,7 @@ export default function RunResultPage() {
                   onSubmit={async (e) => {
                     e.preventDefault();
                     setClarificationError(null);
+                    setClarificationSubmittingStep(0);
                     setClarificationSubmitting(true);
                     try {
                       const answers = result.clarification_questions!.map((q) => {
@@ -592,12 +639,28 @@ export default function RunResultPage() {
                   {clarificationError && (
                     <p className="text-sm text-red-600">{clarificationError}</p>
                   )}
+                  {clarificationSubmitting && (
+                    <div className="rounded-lg border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-800">
+                      <p className="font-medium">{CLARIFICATION_SUBMITTING_STEPS[clarificationSubmittingStep]}</p>
+                      <p className="mt-1 text-sky-600">This usually takes 5–15 seconds.</p>
+                    </div>
+                  )}
                   <button
                     type="submit"
                     disabled={clarificationSubmitting}
-                    className="rounded-lg bg-sky-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-sky-700 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2 disabled:opacity-60"
+                    className="flex items-center justify-center gap-2 rounded-lg bg-sky-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-sky-700 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2 disabled:opacity-60"
                   >
-                    {clarificationSubmitting ? "Submitting…" : "Submit answers & re-run analysis"}
+                    {clarificationSubmitting ? (
+                      <>
+                        <span
+                          className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"
+                          aria-hidden
+                        />
+                        {CLARIFICATION_SUBMITTING_STEPS[clarificationSubmittingStep]}
+                      </>
+                    ) : (
+                      "Submit answers & re-run analysis"
+                    )}
                   </button>
                 </form>
               </Section>
@@ -666,5 +729,21 @@ export default function RunResultPage() {
         </div>
       </div>
     </main>
+  );
+}
+
+export default function RunResultPage() {
+  return (
+    <Suspense
+      fallback={
+        <main className="min-h-screen bg-slate-50">
+          <div className="mx-auto max-w-2xl px-6 py-12">
+            <p className="text-slate-600">Loading…</p>
+          </div>
+        </main>
+      }
+    >
+      <RunResultContent />
+    </Suspense>
   );
 }

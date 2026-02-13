@@ -110,8 +110,22 @@ function isStubBrief(brief: DecisionBrief): boolean {
 }
 
 // ============================================
-// Route Handler
+// Route Handlers
 // ============================================
+
+/** GET /api/decision/run?run_id=xxx — fetch a previous run by ID (e.g. for loading in result page) */
+export async function GET(request: NextRequest): Promise<NextResponse> {
+  const { searchParams } = new URL(request.url);
+  const run_id = searchParams.get("run_id");
+  if (!run_id?.trim()) {
+    return NextResponse.json({ error: "run_id query parameter is required" }, { status: 400 });
+  }
+  const run = await getRun(run_id.trim());
+  if (!run) {
+    return NextResponse.json({ error: "Run not found" }, { status: 404 });
+  }
+  return NextResponse.json(run);
+}
 
 export async function POST(request: NextRequest) {
   try {
