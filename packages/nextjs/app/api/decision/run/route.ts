@@ -93,8 +93,11 @@ async function synthesizeBrief(
   intake: DecisionIntake,
   lensOutputs: LensOutput[]
 ): Promise<DecisionBrief> {
-  // TODO: Implement AI-powered synthesis
+  // TODO: Implement AI-powered synthesis. Model should produce: title (contextual, e.g. from the decision),
+  // summary, recommendation, key_considerations, next_steps. Set generated_at when the response is received.
   return {
+    title: "Decision brief",
+    generated_at: new Date().toISOString(),
     summary: "Pending implementation",
     recommendation: "Pending implementation",
     key_considerations: [],

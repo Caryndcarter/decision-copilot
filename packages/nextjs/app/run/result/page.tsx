@@ -37,6 +37,8 @@ interface LensOutput {
 }
 
 interface DecisionBrief {
+  title: string;
+  generated_at: string;
   summary: string;
   recommendation: string;
   key_considerations: string[];
@@ -57,6 +59,18 @@ interface RunResult {
   clarification_needed: boolean;
   lens_outputs: LensOutput[];
   decision_brief?: DecisionBrief;
+}
+
+function formatBriefDate(iso: string): string {
+  try {
+    const d = new Date(iso);
+    return d.toLocaleString(undefined, {
+      dateStyle: "medium",
+      timeStyle: "short",
+    });
+  } catch {
+    return iso;
+  }
 }
 
 function Section({
@@ -85,6 +99,22 @@ function Card({ children, className = "" }: { children: React.ReactNode; classNa
 }
 
 type ClarificationAnswers = Record<string, string | number | boolean>;
+
+/** Unique key per question across lenses (risk and reversibility can both use e.g. "q1") */
+function questionKey(q: { lens: string; question_id: string }) {
+  return `${q.lens}-${q.question_id}`;
+}
+
+const POSTURE_LABELS: Record<string, string> = {
+  explore: "Explore",
+  pressure_test: "Pressure test",
+  surface_risks: "Surface risks",
+  generate_alternatives: "Generate alternatives",
+};
+
+function postureLabel(posture: string): string {
+  return POSTURE_LABELS[posture] ?? posture.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
 
 export default function RunResultPage() {
   const [result, setResult] = useState<RunResult | null>(null);
@@ -168,7 +198,7 @@ export default function RunResultPage() {
               <span className="font-medium">Constraints:</span> {result.intake.constraints}
             </p>
             <p className="mt-2 text-slate-600">
-              <span className="font-medium">Posture:</span> {result.intake.posture}
+              <span className="font-medium">Posture:</span> {postureLabel(result.intake.posture)}
               {result.intake.leaning_direction && ` · Leaning toward: ${result.intake.leaning_direction}`}
             </p>
           </Section>
@@ -331,7 +361,7 @@ export default function RunResultPage() {
                     setClarificationSubmitting(true);
                     try {
                       const answers = result.clarification_questions!.map((q) => {
-                        const raw = clarificationAnswers[q.question_id];
+                        const raw = clarificationAnswers[questionKey(q)];
                         let answer: string | number | boolean;
                         if (q.answer_type === "boolean") {
                           answer = raw === true || raw === "true" || raw === "yes";
@@ -379,9 +409,9 @@ export default function RunResultPage() {
                   className="space-y-4"
                 >
                   {result.clarification_questions.map((q, i) => (
-                    <div key={`${q.lens}-${q.question_id}-${i}`}>
+                    <div key={questionKey(q)}>
                       <label
-                        htmlFor={q.question_id}
+                        htmlFor={questionKey(q)}
                         className="block text-sm font-medium text-slate-700"
                       >
                         {q.question_text}
@@ -389,13 +419,13 @@ export default function RunResultPage() {
                       </label>
                       {q.answer_type === "enum" && q.options && q.options.length > 0 ? (
                         <select
-                          id={q.question_id}
+                          id={questionKey(q)}
                           required={q.required}
-                          value={String(clarificationAnswers[q.question_id] ?? "")}
+                          value={String(clarificationAnswers[questionKey(q)] ?? "")}
                           onChange={(e) =>
                             setClarificationAnswers((prev) => ({
                               ...prev,
-                              [q.question_id]: e.target.value,
+                              [questionKey(q)]: e.target.value,
                             }))
                           }
                           className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-800 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
@@ -409,19 +439,19 @@ export default function RunResultPage() {
                         </select>
                       ) : q.answer_type === "boolean" ? (
                         <select
-                          id={q.question_id}
+                          id={questionKey(q)}
                           required={q.required}
                           value={
-                            clarificationAnswers[q.question_id] === true
+                            clarificationAnswers[questionKey(q)] === true
                               ? "yes"
-                              : clarificationAnswers[q.question_id] === false
+                              : clarificationAnswers[questionKey(q)] === false
                                 ? "no"
                                 : ""
                           }
                           onChange={(e) =>
                             setClarificationAnswers((prev) => ({
                               ...prev,
-                              [q.question_id]: e.target.value === "yes",
+                              [questionKey(q)]: e.target.value === "yes",
                             }))
                           }
                           className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-800 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
@@ -432,33 +462,33 @@ export default function RunResultPage() {
                         </select>
                       ) : q.answer_type === "numeric" ? (
                         <input
-                          id={q.question_id}
+                          id={questionKey(q)}
                           type="number"
                           required={q.required}
                           value={
-                            clarificationAnswers[q.question_id] !== undefined
-                              ? String(clarificationAnswers[q.question_id])
+                            clarificationAnswers[questionKey(q)] !== undefined
+                              ? String(clarificationAnswers[questionKey(q)])
                               : ""
                           }
                           onChange={(e) => {
                             const v = e.target.value;
                             setClarificationAnswers((prev) => ({
                               ...prev,
-                              [q.question_id]: v === "" ? 0 : Number(v),
+                              [questionKey(q)]: v === "" ? 0 : Number(v),
                             }));
                           }}
                           className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-800 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
                         />
                       ) : (
                         <input
-                          id={q.question_id}
+                          id={questionKey(q)}
                           type="text"
                           required={q.required}
-                          value={String(clarificationAnswers[q.question_id] ?? "")}
+                          value={String(clarificationAnswers[questionKey(q)] ?? "")}
                           onChange={(e) =>
                             setClarificationAnswers((prev) => ({
                               ...prev,
-                              [q.question_id]: e.target.value,
+                              [questionKey(q)]: e.target.value,
                             }))
                           }
                           placeholder="Your answer"
@@ -485,7 +515,17 @@ export default function RunResultPage() {
         {/* Decision brief */}
         {result.decision_brief && (
           <div className="mt-6 rounded-lg border border-sky-200 bg-sky-50 p-4 shadow-sm">
-            <Section title="Decision brief">
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <h2 className="text-lg font-semibold text-slate-900">
+                {result.decision_brief.title || "Decision brief"}
+              </h2>
+              {result.decision_brief.generated_at && (
+                <p className="text-xs text-slate-500">
+                  Generated {formatBriefDate(result.decision_brief.generated_at)}
+                </p>
+              )}
+            </div>
+            <div className="mt-3">
               {result.decision_brief.summary === "Pending implementation" &&
               result.decision_brief.recommendation === "Pending implementation" &&
               !result.decision_brief.key_considerations?.length &&
@@ -513,7 +553,7 @@ export default function RunResultPage() {
                   )}
                 </>
               )}
-            </Section>
+            </div>
           </div>
         )}
 

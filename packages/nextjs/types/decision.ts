@@ -149,6 +149,10 @@ export type LensOutput =
 // ============================================
 
 export interface DecisionBrief {
+  /** Display title for the brief (e.g. "Decision brief") */
+  title: string;
+  /** ISO 8601 date-time when the brief was generated */
+  generated_at: string;
   summary: string;
   recommendation: string;
   key_considerations: string[];
