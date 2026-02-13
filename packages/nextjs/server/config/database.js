@@ -6,6 +6,9 @@ import { dirname, join } from "path";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
+// Monorepo root first (so root .env with Atlas URI is used when running from repo root)
+dotenv.config({ path: join(__dirname, "../../../../.env.local") });
+dotenv.config({ path: join(__dirname, "../../../../.env") });
 dotenv.config({ path: join(__dirname, "../../.env.local") });
 dotenv.config({ path: join(__dirname, "../../.env") });
 dotenv.config({ path: join(__dirname, "../.env.local") });
@@ -32,7 +35,7 @@ class Database {
     try {
       this.client = new MongoClient(MONGODB_URI, {
         maxPoolSize: 10,
-        serverSelectionTimeoutMS: 5000,
+        serverSelectionTimeoutMS: 15000,
         socketTimeoutMS: 45000,
       });
 

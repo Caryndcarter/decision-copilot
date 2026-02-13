@@ -11,6 +11,7 @@ import type {
   DecisionRunStatus,
 } from "@/types/decision";
 import { runRiskLens } from "@/lenses/risk";
+import { getRun, insertRun, replaceRun } from "@/lib/db/runs";
 
 // ============================================
 // Request Types
@@ -99,12 +100,6 @@ async function synthesizeBrief(
 }
 
 // ============================================
-// In-memory store (replace with DB later)
-// ============================================
-
-const runStore = new Map<string, DecisionRunResult>();
-
-// ============================================
 // Route Handler
 // ============================================
 
@@ -175,8 +170,7 @@ async function handleIntake(req: InitialRunRequest): Promise<NextResponse> {
     decision_brief,
   };
 
-  // Store for potential clarification follow-up
-  runStore.set(run_id, result);
+  await insertRun(result);
 
   return NextResponse.json(result);
 }
@@ -187,7 +181,7 @@ async function handleClarification(req: ClarificationRequest): Promise<NextRespo
     return NextResponse.json({ error: validationError }, { status: 400 });
   }
 
-  const existingRun = runStore.get(req.run_id);
+  const existingRun = await getRun(req.run_id);
   if (!existingRun) {
     return NextResponse.json(
       { error: "Run not found. Please start a new decision." },
@@ -222,7 +216,7 @@ async function handleClarification(req: ClarificationRequest): Promise<NextRespo
   existingRun.clarification_needed = false;
   existingRun.clarification_questions = [];
 
-  runStore.set(req.run_id, existingRun);
+  await replaceRun(req.run_id, existingRun);
 
   return NextResponse.json(existingRun);
 }
