@@ -97,7 +97,10 @@ function formatClarifications(clarifications: Clarification[]): string {
   if (!clarifications.length) return "";
   const lines = clarifications.flatMap((c) =>
     c.answers.map((a) => {
-      const text = a.answer === "unknown" ? "unknown (user didn't know)" : String(a.answer);
+      let text: string;
+      if (a.answer === "unknown") text = "unknown (user didn't know)";
+      else if (a.answer_type === "percentage" && typeof a.answer === "number") text = `${a.answer}%`;
+      else text = String(a.answer);
       return `- ${a.question_id} (${a.lens}): ${text}`;
     })
   );

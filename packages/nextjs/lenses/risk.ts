@@ -77,7 +77,7 @@ const RISK_OUTPUT_SCHEMA = {
           question_id: { type: "string" },
           lens: { type: "string", const: "risk" },
           question_text: { type: "string" },
-          answer_type: { type: "string", enum: ["enum", "boolean", "numeric", "short_text"] },
+          answer_type: { type: "string", enum: ["enum", "boolean", "numeric", "percentage", "short_text"] },
           options: {
             type: ["array", "null"],
             items: { type: "string" },
@@ -120,7 +120,10 @@ function formatClarificationsForPrompt(clarifications: Clarification[]): string 
   if (!clarifications.length) return "";
   const lines = clarifications.flatMap((c) =>
     c.answers.map((a) => {
-      const text = a.answer === "unknown" ? "unknown (user didn't know)" : String(a.answer);
+      let text: string;
+      if (a.answer === "unknown") text = "unknown (user didn't know)";
+      else if (a.answer_type === "percentage" && typeof a.answer === "number") text = `${a.answer}%`;
+      else text = String(a.answer);
       return `- ${a.question_id} (${a.lens}): ${text}`;
     })
   );
@@ -174,7 +177,7 @@ interface RawRiskOutput {
     question_id: string;
     lens: "risk";
     question_text: string;
-    answer_type: "enum" | "boolean" | "numeric" | "short_text";
+    answer_type: "enum" | "boolean" | "numeric" | "percentage" | "short_text";
     options: string[] | null;
     required: boolean;
   }>;

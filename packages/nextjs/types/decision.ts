@@ -14,7 +14,7 @@ export type Posture =
 
 export type Lens = "risk" | "reversibility" | "people";
 
-export type AnswerType = "enum" | "boolean" | "numeric" | "short_text";
+export type AnswerType = "enum" | "boolean" | "numeric" | "percentage" | "short_text";
 
 export type Confidence = "high" | "medium" | "low";
 

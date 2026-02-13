@@ -426,7 +426,7 @@ export default function RunResultPage() {
                           } else {
                             answer = raw === true || raw === "true" || raw === "yes";
                           }
-                        } else if (q.answer_type === "numeric") {
+                        } else if (q.answer_type === "numeric" || q.answer_type === "percentage") {
                           answer = typeof raw === "number" ? raw : Number(raw) ?? 0;
                         } else {
                           answer = typeof raw === "string" ? raw : String(raw ?? "");
@@ -435,7 +435,7 @@ export default function RunResultPage() {
                           question_id: q.question_id,
                           lens: q.lens as "risk" | "reversibility" | "people",
                           answer,
-                          answer_type: q.answer_type as "enum" | "boolean" | "numeric" | "short_text",
+                          answer_type: q.answer_type as "enum" | "boolean" | "numeric" | "percentage" | "short_text",
                         };
                       });
                       const res = await fetch("/api/decision/run", {
@@ -545,6 +545,32 @@ export default function RunResultPage() {
                           }}
                           className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-800 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
                         />
+                      ) : q.answer_type === "percentage" ? (
+                        <div className="flex items-center gap-2">
+                          <input
+                            id={questionKey(q)}
+                            type="number"
+                            min={0}
+                            max={100}
+                            step={1}
+                            required={q.required}
+                            value={
+                              clarificationAnswers[questionKey(q)] !== undefined
+                                ? String(clarificationAnswers[questionKey(q)])
+                                : ""
+                            }
+                            onChange={(e) => {
+                              const v = e.target.value;
+                              setClarificationAnswers((prev) => ({
+                                ...prev,
+                                [questionKey(q)]: v === "" ? undefined : Number(v),
+                              }));
+                            }}
+                            placeholder="0–100"
+                            className="mt-1 w-24 rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-800 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
+                          />
+                          <span className="text-slate-500">%</span>
+                        </div>
                       ) : (
                         <input
                           id={questionKey(q)}
