@@ -24,6 +24,18 @@ Runs are stored in MongoDB (or in-memory if MongoDB is unavailable). The result 
 - **Data:** MongoDB for run persistence; optional migrations package.
 - **Monorepo:** npm workspaces (`packages/nextjs`, `packages/migrations`, etc.).
 
+## MongoDB persistence layer
+
+We added a persistence layer so every decision run is stored and can be loaded later.
+
+- **Where:** `packages/nextjs/lib/db/runs.ts` — server-only; used by the decision run API route. DB connection/config lives in `packages/nextjs/server/config/database.js`.
+- **What it does:**
+  - **insertRun(result)** — Persists a new run (after initial intake or when creating a run).
+  - **getRun(run_id)** — Fetches a run by ID (used when submitting clarification and for GET `/api/decision/run?run_id=xxx`).
+  - **replaceRun(run_id, result)** — Updates an existing run (e.g. after clarification re-run).
+- **Storage:** When `MONGODB_URI` is set and the app can connect, runs are stored in MongoDB (collection: `runs`). When MongoDB is unavailable (e.g. not configured, network error), the layer falls back to an in-memory store so the app still runs; those runs are lost on restart.
+- **Why:** Persisting runs lets users return to a result (e.g. via `/run/result?run_id=xxx`), submit clarification for an existing run, and keeps a history of runs in the database.
+
 ## Project structure
 
 ```
