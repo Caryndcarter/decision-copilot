@@ -19,6 +19,38 @@ const POSTURES = [
   { value: "generate_alternatives", label: "Generate alternatives" },
 ] as const;
 
+const DEMO_SCENARIOS = [
+  {
+    id: "slack-to-teams",
+    label: "Slack → Teams migration",
+    situation:
+      "We're considering replacing Slack with Microsoft Teams to consolidate our tooling. We already pay for Microsoft 365 and Teams is included. Slack costs us $15k/year. The engineering team strongly prefers Slack; everyone else is indifferent.",
+    constraints:
+      "IT wants to decide by end of quarter. 85 employees. No budget for running both tools long-term.",
+    posture: "explore" as const,
+    leaning_direction: "",
+    knowns_assumptions:
+      "Teams has feature parity for most use cases. Engineers use Slack integrations heavily (GitHub, PagerDuty, CI alerts). Migration would take 2-3 weeks. I assume people will adapt after initial grumbling.",
+    unknowns:
+      "How much productivity we'd lose during transition. Whether the Slack integrations have Teams equivalents. If engineers would see this as a signal that leadership doesn't value their preferences.",
+  },
+  {
+    id: "vp-sales-underperforming",
+    label: "Underperforming VP Sales",
+    situation:
+      "Our VP of Sales of 2 years is underperforming. Pipeline is down 30% year-over-year despite adding two reps. She's well-liked, has deep customer relationships, and was critical to landing our three largest accounts. The board is asking why we're missing targets.",
+    constraints:
+      "Q4 planning starts in 6 weeks. Sales team is already anxious about potential changes. We can't afford a long leadership gap.",
+    posture: "pressure_test" as const,
+    leaning_direction:
+      "Keeping her but adding a sales ops lead to handle process and accountability, letting her focus on strategic deals",
+    knowns_assumptions:
+      "She's great at relationships but weak on process and pipeline management. The two new reps aren't ramping well due to lack of structure. I assume adding ops support will fix the gap without losing her customer relationships.",
+    unknowns:
+      "Whether she'll accept an ops hire as support vs. see it as undermining her. If the real problem is her or the reps she hired. How the board will react to anything short of replacement.",
+  },
+] as const;
+
 export default function IntakePage() {
   const [situation, setSituation] = useState("");
   const [constraints, setConstraints] = useState("");
@@ -31,6 +63,17 @@ export default function IntakePage() {
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
   const showLeaningDirection = posture === "pressure_test";
+
+  function loadDemo(demoId: string) {
+    const demo = DEMO_SCENARIOS.find((d) => d.id === demoId);
+    if (!demo) return;
+    setSituation(demo.situation);
+    setConstraints(demo.constraints);
+    setPosture(demo.posture);
+    setLeaningDirection(demo.leaning_direction);
+    setKnownsAssumptions(demo.knowns_assumptions);
+    setUnknowns(demo.unknowns);
+  }
 
   // Cycle through progress steps every 3s while submitting (gives sense of progress during 5–15s API call)
   useEffect(() => {
@@ -86,9 +129,31 @@ export default function IntakePage() {
         <header className="mb-10">
           <h1 className="text-2xl font-semibold text-slate-900">Decision intake</h1>
           <p className="mt-1 text-slate-600">
-            Describe your decision and how you’d like to explore it.
+            Describe your decision and how you'd like to explore it.
           </p>
         </header>
+
+        {/* Demo scenarios */}
+        <div className="mb-8 rounded-lg border-2 border-dashed border-violet-300 bg-violet-50/50 p-4">
+          <div className="flex items-center gap-2">
+            <span className="rounded bg-violet-200 px-1.5 py-0.5 text-xs font-semibold uppercase tracking-wide text-violet-700">
+              Demo
+            </span>
+            <p className="text-sm text-violet-700">Load a sample scenario to try it out</p>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {DEMO_SCENARIOS.map((demo) => (
+              <button
+                key={demo.id}
+                type="button"
+                onClick={() => loadDemo(demo.id)}
+                className="rounded-md border border-violet-300 bg-white px-3 py-1.5 text-sm font-medium text-violet-700 hover:bg-violet-100 hover:border-violet-400"
+              >
+                {demo.label}
+              </button>
+            ))}
+          </div>
+        </div>
 
         <form onSubmit={handleSubmit} className="space-y-8">
           <div>

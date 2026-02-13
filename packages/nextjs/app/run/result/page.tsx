@@ -122,10 +122,10 @@ const POSTURE_LABELS: Record<string, string> = {
 };
 
 const CLARIFICATION_SUBMITTING_STEPS = [
-  "Re-running risk lens…",
-  "Re-running reversibility…",
-  "Re-running people lens…",
-  "Synthesizing brief…",
+  "Updating risk analysis…",
+  "Updating reversibility…",
+  "Updating stakeholder impact…",
+  "Preparing your recommendation…",
 ];
 
 function postureLabel(posture: string): string {
@@ -455,8 +455,64 @@ function RunResultContent() {
             <Card className="mt-6 border-sky-200 bg-sky-50/50">
               <Section title="Follow-up questions">
                 <p className="mb-4 text-sm text-slate-600">
-                  Answer these to refine the analysis. Then we’ll re-run and show an updated result.
+                  Answer these to refine the analysis. Then we'll re-run and show an updated result.
                 </p>
+                <div className="mb-4 rounded-md border-2 border-dashed border-violet-300 bg-violet-50/50 p-3">
+                  <div className="flex items-center gap-2">
+                    <span className="rounded bg-violet-200 px-1.5 py-0.5 text-xs font-semibold uppercase tracking-wide text-violet-700">
+                      Demo
+                    </span>
+                    <span className="text-sm text-violet-700">Quick-fill for testing</span>
+                  </div>
+                  <div className="mt-2 flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const samples: ClarificationAnswers = {};
+                        result.clarification_questions?.forEach((q) => {
+                          const key = questionKey(q);
+                          if (q.answer_type === "boolean") {
+                            samples[key] = true;
+                          } else if (q.answer_type === "percentage") {
+                            samples[key] = 50;
+                          } else if (q.answer_type === "numeric") {
+                            samples[key] = 5;
+                          } else if (q.answer_type === "enum" && q.options?.length) {
+                            samples[key] = q.options[0];
+                          } else {
+                            samples[key] = "Moderate impact expected. Need more data to assess fully.";
+                          }
+                        });
+                        setClarificationAnswers(samples);
+                      }}
+                      className="rounded-md border border-violet-300 bg-white px-3 py-1.5 text-sm font-medium text-violet-700 hover:bg-violet-100"
+                    >
+                      Fill sample answers
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const unknowns: ClarificationAnswers = {};
+                        result.clarification_questions?.forEach((q) => {
+                          const key = questionKey(q);
+                          if (q.answer_type === "boolean") {
+                            unknowns[key] = "unknown";
+                          } else if (q.answer_type === "percentage" || q.answer_type === "numeric") {
+                            unknowns[key] = 0;
+                          } else if (q.answer_type === "enum" && q.options?.length) {
+                            unknowns[key] = q.options[q.options.length - 1]; // often "Unknown" is last
+                          } else {
+                            unknowns[key] = "Unknown";
+                          }
+                        });
+                        setClarificationAnswers(unknowns);
+                      }}
+                      className="rounded-md border border-violet-300 bg-white px-3 py-1.5 text-sm font-medium text-violet-700 hover:bg-violet-100"
+                    >
+                      Mark all unknown
+                    </button>
+                  </div>
+                </div>
                 <form
                   onSubmit={async (e) => {
                     e.preventDefault();
@@ -610,7 +666,7 @@ function RunResultContent() {
                               const v = e.target.value;
                               setClarificationAnswers((prev) => ({
                                 ...prev,
-                                [questionKey(q)]: v === "" ? undefined : Number(v),
+                                [questionKey(q)]: v === "" ? 0 : Number(v),
                               }));
                             }}
                             placeholder="0–100"
