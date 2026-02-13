@@ -11,6 +11,7 @@ import type {
   DecisionRunStatus,
 } from "@/types/decision";
 import { runRiskLens } from "@/lenses/risk";
+import { runReversibilityLens } from "@/lenses/reversibility";
 import { getRun, insertRun, replaceRun } from "@/lib/db/runs";
 
 // ============================================
@@ -81,9 +82,11 @@ async function runLenses(
   intake: DecisionIntake,
   _clarifications: Clarification[]
 ): Promise<LensOutput[]> {
-  // Run risk lens (other lenses to be added later)
-  const riskOutput = await runRiskLens(intake);
-  return [riskOutput];
+  const [riskOutput, reversibilityOutput] = await Promise.all([
+    runRiskLens(intake),
+    runReversibilityLens(intake),
+  ]);
+  return [riskOutput, reversibilityOutput];
 }
 
 async function synthesizeBrief(

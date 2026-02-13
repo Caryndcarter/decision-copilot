@@ -20,6 +20,8 @@ interface LensOutput {
   lens: string;
   confidence?: string;
   top_risks?: string[];
+  irreversible_steps?: string[];
+  safe_to_try_first?: string[];
   assumptions_detected?: string[];
   blind_spots?: BlindSpot[];
   tradeoffs?: Tradeoff[];
@@ -131,6 +133,7 @@ export default function RunResultPage() {
   }
 
   const riskLens = result.lens_outputs?.find((o) => o.lens === "risk");
+  const reversibilityLens = result.lens_outputs?.find((o) => o.lens === "reversibility");
   const statusLabel =
     result.status === "awaiting_clarification"
       ? "Awaiting clarification"
@@ -260,6 +263,41 @@ export default function RunResultPage() {
                         <span className="text-slate-400">•</span>
                         <span>{q.question_text}</span>
                       </li>
+                    ))}
+                  </ul>
+                </Section>
+              </Card>
+            )}
+          </div>
+        )}
+
+        {/* Reversibility lens */}
+        {reversibilityLens && (
+          <div className="mt-6 space-y-6">
+            {reversibilityLens.irreversible_steps && reversibilityLens.irreversible_steps.length > 0 && (
+              <Card className="border-amber-200 bg-amber-50/30">
+                <Section title="Irreversible steps">
+                  <p className="mb-2 text-sm text-slate-600">
+                    Steps or commitments that would be hard or impossible to undo.
+                  </p>
+                  <ul className="list-inside list-disc space-y-1.5 text-slate-700">
+                    {reversibilityLens.irreversible_steps.map((s, i) => (
+                      <li key={i}>{s}</li>
+                    ))}
+                  </ul>
+                </Section>
+              </Card>
+            )}
+
+            {reversibilityLens.safe_to_try_first && reversibilityLens.safe_to_try_first.length > 0 && (
+              <Card className="border-emerald-200 bg-emerald-50/30">
+                <Section title="Safe to try first">
+                  <p className="mb-2 text-sm text-slate-600">
+                    Low-commitment steps or experiments you could try with minimal downside.
+                  </p>
+                  <ul className="list-inside list-disc space-y-1.5 text-slate-700">
+                    {reversibilityLens.safe_to_try_first.map((s, i) => (
+                      <li key={i}>{s}</li>
                     ))}
                   </ul>
                 </Section>

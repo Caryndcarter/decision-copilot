@@ -7,3 +7,8 @@
 import "server-only";
 
 export { runRiskLens, buildRiskPrompt, parseRiskOutput } from "./risk";
+export {
+  runReversibilityLens,
+  buildReversibilityPrompt,
+  parseReversibilityOutput,
+} from "./reversibility";
