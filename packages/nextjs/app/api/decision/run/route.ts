@@ -12,6 +12,7 @@ import type {
 } from "@/types/decision";
 import { runRiskLens } from "@/lenses/risk";
 import { runReversibilityLens } from "@/lenses/reversibility";
+import { runPeopleLens } from "@/lenses/people";
 import { runBriefSynthesis } from "@/lenses/brief";
 import { getRun, insertRun, replaceRun } from "@/lib/db/runs";
 
@@ -83,11 +84,12 @@ async function runLenses(
   intake: DecisionIntake,
   clarifications: Clarification[]
 ): Promise<LensOutput[]> {
-  const [riskOutput, reversibilityOutput] = await Promise.all([
+  const [riskOutput, reversibilityOutput, peopleOutput] = await Promise.all([
     runRiskLens(intake, clarifications),
     runReversibilityLens(intake, clarifications),
+    runPeopleLens(intake, clarifications),
   ]);
-  return [riskOutput, reversibilityOutput];
+  return [riskOutput, reversibilityOutput, peopleOutput];
 }
 
 async function synthesizeBrief(

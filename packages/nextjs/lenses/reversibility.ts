@@ -126,7 +126,10 @@ function getPostureInstruction(posture: Posture, leaningDirection?: string): str
 function formatClarificationsForPrompt(clarifications: Clarification[]): string {
   if (!clarifications.length) return "";
   const lines = clarifications.flatMap((c) =>
-    c.answers.map((a) => `- ${a.question_id} (${a.lens}): ${String(a.answer)}`)
+    c.answers.map((a) => {
+      const text = a.answer === "unknown" ? "unknown (user didn't know)" : String(a.answer);
+      return `- ${a.question_id} (${a.lens}): ${text}`;
+    })
   );
   return `\n\n## Follow-up answers from the user\n${lines.join("\n")}\n\nUse these answers to refine your reversibility analysis. Do not ask the same questions again.`;
 }

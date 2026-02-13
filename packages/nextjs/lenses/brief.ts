@@ -76,6 +76,18 @@ function formatLensOutputs(lensOutputs: LensOutput[]): string {
         parts.push(
           `- Tradeoffs: ${out.tradeoffs.map((t) => `${t.option} (↑ ${t.upside}, ↓ ${t.downside})`).join("; ")}`
         );
+    } else if (out.lens === "people") {
+      parts.push(
+        `### People lens\n- Stakeholder impacts: ${(out.stakeholder_impacts ?? []).map((s) => `${s.stakeholder} (${s.sentiment}): ${s.impact}`).join("; ")}`
+      );
+      if (out.execution_risks?.length)
+        parts.push(`- Execution risks: ${out.execution_risks.join("; ")}`);
+      if (out.assumptions_detected?.length)
+        parts.push(`- Assumptions: ${out.assumptions_detected.join("; ")}`);
+      if (out.tradeoffs?.length)
+        parts.push(
+          `- Tradeoffs: ${out.tradeoffs.map((t) => `${t.option} (↑ ${t.upside}, ↓ ${t.downside})`).join("; ")}`
+        );
     }
   }
   return parts.join("\n");
@@ -84,7 +96,10 @@ function formatLensOutputs(lensOutputs: LensOutput[]): string {
 function formatClarifications(clarifications: Clarification[]): string {
   if (!clarifications.length) return "";
   const lines = clarifications.flatMap((c) =>
-    c.answers.map((a) => `- ${a.question_id} (${a.lens}): ${String(a.answer)}`)
+    c.answers.map((a) => {
+      const text = a.answer === "unknown" ? "unknown (user didn't know)" : String(a.answer);
+      return `- ${a.question_id} (${a.lens}): ${text}`;
+    })
   );
   return `\n\n## Follow-up answers from the user\n${lines.join("\n")}`;
 }

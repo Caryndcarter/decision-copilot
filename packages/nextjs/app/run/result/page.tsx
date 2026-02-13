@@ -16,12 +16,20 @@ interface Tradeoff {
   downside: string;
 }
 
+interface StakeholderImpact {
+  stakeholder: string;
+  impact: string;
+  sentiment: "positive" | "negative" | "neutral";
+}
+
 interface LensOutput {
   lens: string;
   confidence?: string;
   top_risks?: string[];
   irreversible_steps?: string[];
   safe_to_try_first?: string[];
+  stakeholder_impacts?: StakeholderImpact[];
+  execution_risks?: string[];
   assumptions_detected?: string[];
   blind_spots?: BlindSpot[];
   tradeoffs?: Tradeoff[];
@@ -169,6 +177,7 @@ export default function RunResultPage() {
 
   const riskLens = result.lens_outputs?.find((o) => o.lens === "risk");
   const reversibilityLens = result.lens_outputs?.find((o) => o.lens === "reversibility");
+  const peopleLens = result.lens_outputs?.find((o) => o.lens === "people");
   const statusLabel =
     result.status === "awaiting_clarification"
       ? "Awaiting clarification"
@@ -345,6 +354,54 @@ export default function RunResultPage() {
           </div>
         )}
 
+        {/* People lens */}
+        {peopleLens && (
+          <div className="mt-6 space-y-6">
+            {peopleLens.stakeholder_impacts && peopleLens.stakeholder_impacts.length > 0 && (
+              <div className="rounded-lg border border-violet-200 bg-violet-50 p-4 shadow-sm">
+                <Section title="Stakeholder impacts">
+                  <p className="mb-3 text-sm text-slate-600">
+                    Who is affected by this decision and how.
+                  </p>
+                  <ul className="space-y-3">
+                    {peopleLens.stakeholder_impacts.map((s, i) => (
+                      <li key={i} className="flex flex-col gap-1">
+                        <span className="font-medium text-slate-800">{s.stakeholder}</span>
+                        <span
+                          className={`inline-flex w-fit rounded-full px-2 py-0.5 text-xs font-medium ${
+                            s.sentiment === "positive"
+                              ? "bg-emerald-100 text-emerald-800"
+                              : s.sentiment === "negative"
+                                ? "bg-red-100 text-red-800"
+                                : "bg-slate-200 text-slate-700"
+                          }`}
+                        >
+                          {s.sentiment}
+                        </span>
+                        <span className="text-slate-700">{s.impact}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </Section>
+              </div>
+            )}
+            {peopleLens.execution_risks && peopleLens.execution_risks.length > 0 && (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 shadow-sm">
+                <Section title="Execution risks">
+                  <p className="mb-2 text-sm text-slate-600">
+                    Risks to successful execution: adoption, resistance, capability gaps, coordination.
+                  </p>
+                  <ul className="list-inside list-disc space-y-1.5 text-slate-700">
+                    {peopleLens.execution_risks.map((r, i) => (
+                      <li key={i}>{r}</li>
+                    ))}
+                  </ul>
+                </Section>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Clarification form */}
         {result.clarification_needed &&
           result.clarification_questions &&
@@ -364,7 +421,11 @@ export default function RunResultPage() {
                         const raw = clarificationAnswers[questionKey(q)];
                         let answer: string | number | boolean;
                         if (q.answer_type === "boolean") {
-                          answer = raw === true || raw === "true" || raw === "yes";
+                          if (raw === "unknown" || raw === null || raw === undefined) {
+                            answer = "unknown";
+                          } else {
+                            answer = raw === true || raw === "true" || raw === "yes";
+                          }
                         } else if (q.answer_type === "numeric") {
                           answer = typeof raw === "number" ? raw : Number(raw) ?? 0;
                         } else {
@@ -446,19 +507,24 @@ export default function RunResultPage() {
                               ? "yes"
                               : clarificationAnswers[questionKey(q)] === false
                                 ? "no"
-                                : ""
+                                : clarificationAnswers[questionKey(q)] === "unknown"
+                                  ? "unknown"
+                                  : ""
                           }
-                          onChange={(e) =>
+                          onChange={(e) => {
+                            const v = e.target.value;
                             setClarificationAnswers((prev) => ({
                               ...prev,
-                              [questionKey(q)]: e.target.value === "yes",
-                            }))
-                          }
+                              [questionKey(q)]:
+                                v === "yes" ? true : v === "no" ? false : v === "unknown" ? "unknown" : "",
+                            }));
+                          }}
                           className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-800 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
                         >
                           <option value="">Select…</option>
                           <option value="yes">Yes</option>
                           <option value="no">No</option>
+                          <option value="unknown">Unknown</option>
                         </select>
                       ) : q.answer_type === "numeric" ? (
                         <input

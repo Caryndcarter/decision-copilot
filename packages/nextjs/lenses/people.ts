@@ -1,7 +1,7 @@
 /**
- * Risk Lens
+ * People Lens
  *
- * Analyzes a decision for potential risks, blind spots, and tradeoffs.
+ * Focuses on stakeholder impacts and execution risks for a decision.
  * SERVER-ONLY: Do not import from client/UI code.
  */
 
@@ -11,31 +11,50 @@ import type { LLMMessage } from "@/llm/types";
 import type {
   DecisionIntake,
   Posture,
-  RiskLensOutput,
+  PeopleLensOutput,
   BlindSpot,
   Tradeoff,
   LensQuestion,
   Clarification,
+  StakeholderImpact,
 } from "@/types/decision";
 
-// JSON Schema for structured output
-const RISK_OUTPUT_SCHEMA = {
+const PEOPLE_OUTPUT_SCHEMA = {
   type: "object",
   properties: {
     confidence: {
       type: "string",
       enum: ["high", "medium", "low"],
-      description: "How confident are you in this analysis given the information provided",
+      description: "How confident you are in this analysis given the information provided",
     },
-    top_risks: {
+    stakeholder_impacts: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          stakeholder: { type: "string", description: "Who is affected (role, team, or group)" },
+          impact: { type: "string", description: "How this decision affects them" },
+          sentiment: {
+            type: "string",
+            enum: ["positive", "negative", "neutral"],
+            description: "Whether the impact is positive, negative, or neutral",
+          },
+        },
+        required: ["stakeholder", "impact", "sentiment"],
+        additionalProperties: false,
+      },
+      description: "Key stakeholders and how the decision impacts them (3-7 items)",
+    },
+    execution_risks: {
       type: "array",
       items: { type: "string" },
-      description: "The most significant risks associated with this decision (3-7 items)",
+      description:
+        "Risks to successful execution: adoption, resistance, capability gaps, coordination (3-7 items)",
     },
     assumptions_detected: {
       type: "array",
       items: { type: "string" },
-      description: "Assumptions the decision-maker appears to be making",
+      description: "Assumptions the decision-maker appears to be making about people and execution",
     },
     blind_spots: {
       type: "array",
@@ -48,7 +67,7 @@ const RISK_OUTPUT_SCHEMA = {
         required: ["area", "description"],
         additionalProperties: false,
       },
-      description: "Areas the decision-maker may not be considering",
+      description: "Stakeholder or execution areas the decision-maker may not be considering",
     },
     tradeoffs: {
       type: "array",
@@ -62,12 +81,12 @@ const RISK_OUTPUT_SCHEMA = {
         required: ["option", "upside", "downside"],
         additionalProperties: false,
       },
-      description: "Key tradeoffs to consider",
+      description: "Key tradeoffs involving people or execution",
     },
     remaining_uncertainty: {
       type: "array",
       items: { type: "string" },
-      description: "Information that would improve this analysis if known",
+      description: "Information about stakeholders or execution that would improve this analysis",
     },
     questions_to_answer_next: {
       type: "array",
@@ -75,7 +94,7 @@ const RISK_OUTPUT_SCHEMA = {
         type: "object",
         properties: {
           question_id: { type: "string" },
-          lens: { type: "string", const: "risk" },
+          lens: { type: "string", const: "people" },
           question_text: { type: "string" },
           answer_type: { type: "string", enum: ["enum", "boolean", "numeric", "short_text"] },
           options: {
@@ -88,12 +107,13 @@ const RISK_OUTPUT_SCHEMA = {
         required: ["question_id", "lens", "question_text", "answer_type", "options", "required"],
         additionalProperties: false,
       },
-      description: "Follow-up questions that would help clarify risks (0-3 questions, only if critical gaps exist)",
+      description: "Follow-up questions that would help clarify stakeholder or execution impacts (0-3 questions, only if critical gaps exist)",
     },
   },
   required: [
     "confidence",
-    "top_risks",
+    "stakeholder_impacts",
+    "execution_risks",
     "assumptions_detected",
     "blind_spots",
     "tradeoffs",
@@ -106,13 +126,13 @@ const RISK_OUTPUT_SCHEMA = {
 function getPostureInstruction(posture: Posture, leaningDirection?: string): string {
   switch (posture) {
     case "explore":
-      return "The user is exploring this decision openly. Provide balanced analysis of risks across all options.";
+      return "The user is exploring this decision openly. Surface who is affected and what execution risks matter across options.";
     case "pressure_test":
-      return `The user is leaning toward: "${leaningDirection}". Actively challenge this direction - look for risks they may be downplaying or ignoring because of their bias toward this choice.`;
+      return `The user is leaning toward: "${leaningDirection}". Stress-test this by identifying who might resist, who is left out, and what could derail execution.`;
     case "surface_risks":
-      return "The user specifically wants to understand risks. Be thorough and don't soften the risks. Surface even uncomfortable possibilities.";
+      return "The user wants to understand risks. Be thorough on stakeholder impacts and execution risks; don't soften the people side.";
     case "generate_alternatives":
-      return "The user wants to explore alternatives. For each risk you identify, consider whether it points to an alternative approach that might avoid that risk.";
+      return "The user wants to explore alternatives. For each stakeholder or execution risk, consider whether a different approach could reduce impact or risk.";
   }
 }
 
@@ -124,10 +144,10 @@ function formatClarificationsForPrompt(clarifications: Clarification[]): string 
       return `- ${a.question_id} (${a.lens}): ${text}`;
     })
   );
-  return `\n\n## Follow-up answers from the user\n${lines.join("\n")}\n\nUse these answers to refine your risk analysis. Do not ask the same questions again.`;
+  return `\n\n## Follow-up answers from the user\n${lines.join("\n")}\n\nUse these answers to refine your people and execution analysis. Do not ask the same questions again.`;
 }
 
-export function buildRiskPrompt(
+export function buildPeoplePrompt(
   intake: DecisionIntake,
   clarifications: Clarification[] = []
 ): LLMMessage[] {
@@ -136,13 +156,15 @@ export function buildRiskPrompt(
     intake.posture === "pressure_test" ? intake.leaning_direction : undefined
   );
 
-  const systemPrompt = `You are a risk analyst helping someone think through an important decision. Your job is to surface risks, assumptions, and blind spots they may not have considered.
+  const systemPrompt = `You are an advisor helping someone think through the people and execution side of an important decision. Your job is to identify:
+1. Stakeholder impacts — who is affected (teams, roles, partners) and how (positive, negative, neutral).
+2. Execution risks — what could derail or complicate implementation: adoption, resistance, capability gaps, coordination, dependencies.
 
 ${postureInstruction}
 
-Be specific and actionable. Avoid generic advice. Ground your analysis in the specific situation described.
+Be specific and actionable. Ground your analysis in the specific situation described.
 
-If critical information is missing that would significantly change your risk assessment, include 1-3 focused follow-up questions. Only ask questions if the gaps are significant.`;
+If critical information is missing that would significantly change your stakeholder or execution analysis, include 1-3 focused follow-up questions. Only ask questions if the gaps are significant.`;
 
   let userContent = `## Decision Context
 
@@ -154,7 +176,7 @@ ${intake.knowns_assumptions ? `**What I know / am assuming:** ${intake.knowns_as
 
 ${intake.unknowns ? `**What I don't know:** ${intake.unknowns}` : ""}
 
-Analyze the risks of this decision.`;
+Analyze stakeholder impacts and execution risks for this decision.`;
   userContent += formatClarificationsForPrompt(clarifications);
 
   return [
@@ -163,16 +185,17 @@ Analyze the risks of this decision.`;
   ];
 }
 
-interface RawRiskOutput {
+interface RawPeopleOutput {
   confidence: "high" | "medium" | "low";
-  top_risks: string[];
+  stakeholder_impacts: Array<{ stakeholder: string; impact: string; sentiment: string }>;
+  execution_risks: string[];
   assumptions_detected: string[];
   blind_spots: Array<{ area: string; description: string }>;
   tradeoffs: Array<{ option: string; upside: string; downside: string }>;
   remaining_uncertainty: string[];
   questions_to_answer_next: Array<{
     question_id: string;
-    lens: "risk";
+    lens: "people";
     question_text: string;
     answer_type: "enum" | "boolean" | "numeric" | "short_text";
     options: string[] | null;
@@ -180,33 +203,35 @@ interface RawRiskOutput {
   }>;
 }
 
-export function parseRiskOutput(parsed: unknown): RiskLensOutput {
-  const raw = parsed as RawRiskOutput;
+export function parsePeopleOutput(parsed: unknown): PeopleLensOutput {
+  const raw = parsed as RawPeopleOutput;
 
-  // Map to our types with defaults for safety
-  const output: RiskLensOutput = {
-    lens: "risk",
+  const output: PeopleLensOutput = {
+    lens: "people",
     confidence: raw.confidence ?? "medium",
-    top_risks: raw.top_risks ?? [],
-    assumptions_detected: raw.assumptions_detected ?? [],
-    blind_spots: (raw.blind_spots ?? []).map(
-      (b): BlindSpot => ({
-        area: b.area,
-        description: b.description,
+    stakeholder_impacts: (raw.stakeholder_impacts ?? []).map(
+      (s): StakeholderImpact => ({
+        stakeholder: s.stakeholder,
+        impact: s.impact,
+        sentiment:
+          s.sentiment === "positive" || s.sentiment === "negative" || s.sentiment === "neutral"
+            ? s.sentiment
+            : "neutral",
       })
     ),
+    execution_risks: raw.execution_risks ?? [],
+    assumptions_detected: raw.assumptions_detected ?? [],
+    blind_spots: (raw.blind_spots ?? []).map(
+      (b): BlindSpot => ({ area: b.area, description: b.description })
+    ),
     tradeoffs: (raw.tradeoffs ?? []).map(
-      (t): Tradeoff => ({
-        option: t.option,
-        upside: t.upside,
-        downside: t.downside,
-      })
+      (t): Tradeoff => ({ option: t.option, upside: t.upside, downside: t.downside })
     ),
     remaining_uncertainty: raw.remaining_uncertainty ?? [],
     questions_to_answer_next: (raw.questions_to_answer_next ?? []).map(
       (q): LensQuestion => ({
         question_id: q.question_id,
-        lens: "risk",
+        lens: "people",
         question_text: q.question_text,
         answer_type: q.answer_type,
         options: q.options ?? undefined,
@@ -218,21 +243,21 @@ export function parseRiskOutput(parsed: unknown): RiskLensOutput {
   return output;
 }
 
-export async function runRiskLens(
+export async function runPeopleLens(
   intake: DecisionIntake,
   clarifications: Clarification[] = []
-): Promise<RiskLensOutput> {
-  const messages = buildRiskPrompt(intake, clarifications);
+): Promise<PeopleLensOutput> {
+  const messages = buildPeoplePrompt(intake, clarifications);
 
   const response = await openai.run(messages, {
-    schema: RISK_OUTPUT_SCHEMA,
+    schema: PEOPLE_OUTPUT_SCHEMA,
     temperature: 0.7,
     maxTokens: 2048,
   });
 
   if (!response.parsed) {
-    throw new Error("Risk lens did not return valid structured output");
+    throw new Error("People lens did not return valid structured output");
   }
 
-  return parseRiskOutput(response.parsed);
+  return parsePeopleOutput(response.parsed);
 }
