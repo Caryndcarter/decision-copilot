@@ -15,6 +15,7 @@ import type {
   BlindSpot,
   Tradeoff,
   LensQuestion,
+  Clarification,
 } from "@/types/decision";
 
 // JSON Schema for structured output
@@ -115,7 +116,18 @@ function getPostureInstruction(posture: Posture, leaningDirection?: string): str
   }
 }
 
-export function buildRiskPrompt(intake: DecisionIntake): LLMMessage[] {
+function formatClarificationsForPrompt(clarifications: Clarification[]): string {
+  if (!clarifications.length) return "";
+  const lines = clarifications.flatMap((c) =>
+    c.answers.map((a) => `- ${a.question_id} (${a.lens}): ${String(a.answer)}`)
+  );
+  return `\n\n## Follow-up answers from the user\n${lines.join("\n")}\n\nUse these answers to refine your risk analysis. Do not ask the same questions again.`;
+}
+
+export function buildRiskPrompt(
+  intake: DecisionIntake,
+  clarifications: Clarification[] = []
+): LLMMessage[] {
   const postureInstruction = getPostureInstruction(
     intake.posture,
     intake.posture === "pressure_test" ? intake.leaning_direction : undefined
@@ -129,7 +141,7 @@ Be specific and actionable. Avoid generic advice. Ground your analysis in the sp
 
 If critical information is missing that would significantly change your risk assessment, include 1-3 focused follow-up questions. Only ask questions if the gaps are significant.`;
 
-  const userContent = `## Decision Context
+  let userContent = `## Decision Context
 
 **Situation:** ${intake.situation}
 
@@ -140,6 +152,7 @@ ${intake.knowns_assumptions ? `**What I know / am assuming:** ${intake.knowns_as
 ${intake.unknowns ? `**What I don't know:** ${intake.unknowns}` : ""}
 
 Analyze the risks of this decision.`;
+  userContent += formatClarificationsForPrompt(clarifications);
 
   return [
     { role: "system", content: systemPrompt },
@@ -202,8 +215,11 @@ export function parseRiskOutput(parsed: unknown): RiskLensOutput {
   return output;
 }
 
-export async function runRiskLens(intake: DecisionIntake): Promise<RiskLensOutput> {
-  const messages = buildRiskPrompt(intake);
+export async function runRiskLens(
+  intake: DecisionIntake,
+  clarifications: Clarification[] = []
+): Promise<RiskLensOutput> {
+  const messages = buildRiskPrompt(intake, clarifications);
 
   const response = await openai.run(messages, {
     schema: RISK_OUTPUT_SCHEMA,

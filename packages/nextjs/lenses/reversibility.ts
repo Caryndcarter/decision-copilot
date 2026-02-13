@@ -15,6 +15,7 @@ import type {
   BlindSpot,
   Tradeoff,
   LensQuestion,
+  Clarification,
 } from "@/types/decision";
 
 const REVERSIBILITY_OUTPUT_SCHEMA = {
@@ -122,7 +123,18 @@ function getPostureInstruction(posture: Posture, leaningDirection?: string): str
   }
 }
 
-export function buildReversibilityPrompt(intake: DecisionIntake): LLMMessage[] {
+function formatClarificationsForPrompt(clarifications: Clarification[]): string {
+  if (!clarifications.length) return "";
+  const lines = clarifications.flatMap((c) =>
+    c.answers.map((a) => `- ${a.question_id} (${a.lens}): ${String(a.answer)}`)
+  );
+  return `\n\n## Follow-up answers from the user\n${lines.join("\n")}\n\nUse these answers to refine your reversibility analysis. Do not ask the same questions again.`;
+}
+
+export function buildReversibilityPrompt(
+  intake: DecisionIntake,
+  clarifications: Clarification[] = []
+): LLMMessage[] {
   const postureInstruction = getPostureInstruction(
     intake.posture,
     intake.posture === "pressure_test" ? intake.leaning_direction : undefined
@@ -138,7 +150,7 @@ Be specific and actionable. Ground your analysis in the specific situation descr
 
 If critical information is missing that would change your reversibility analysis, include 1-3 focused follow-up questions. Only ask questions if the gaps are significant.`;
 
-  const userContent = `## Decision Context
+  let userContent = `## Decision Context
 
 **Situation:** ${intake.situation}
 
@@ -149,6 +161,7 @@ ${intake.knowns_assumptions ? `**What I know / am assuming:** ${intake.knowns_as
 ${intake.unknowns ? `**What I don't know:** ${intake.unknowns}` : ""}
 
 Analyze what's reversible vs. irreversible in this decision, and what's safe to try first.`;
+  userContent += formatClarificationsForPrompt(clarifications);
 
   return [
     { role: "system", content: systemPrompt },
@@ -206,9 +219,10 @@ export function parseReversibilityOutput(parsed: unknown): ReversibilityLensOutp
 }
 
 export async function runReversibilityLens(
-  intake: DecisionIntake
+  intake: DecisionIntake,
+  clarifications: Clarification[] = []
 ): Promise<ReversibilityLensOutput> {
-  const messages = buildReversibilityPrompt(intake);
+  const messages = buildReversibilityPrompt(intake, clarifications);
 
   const response = await openai.run(messages, {
     schema: REVERSIBILITY_OUTPUT_SCHEMA,
