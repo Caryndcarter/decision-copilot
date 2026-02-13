@@ -1,9 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 
 const RUN_RESULT_KEY = "decisionRunResult";
+
+const SUBMITTING_STEPS = [
+  "Analyzing risks…",
+  "Checking reversibility…",
+  "Considering stakeholders…",
+  "Preparing your brief…",
+];
 
 const POSTURES = [
   { value: "explore", label: "Explore" },
@@ -20,13 +27,24 @@ export default function IntakePage() {
   const [knownsAssumptions, setKnownsAssumptions] = useState("");
   const [unknowns, setUnknowns] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [submittingStep, setSubmittingStep] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
   const showLeaningDirection = posture === "pressure_test";
 
+  // Cycle through progress steps every 3s while submitting (gives sense of progress during 5–15s API call)
+  useEffect(() => {
+    if (!submitting) return;
+    const interval = setInterval(() => {
+      setSubmittingStep((prev) => (prev + 1) % SUBMITTING_STEPS.length);
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [submitting]);
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    setSubmittingStep(0);
     setSubmitting(true);
 
     const intake = {
@@ -172,13 +190,30 @@ export default function IntakePage() {
             </div>
           )}
 
+          {submitting && (
+            <div className="rounded-lg border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-800">
+              <p className="font-medium">{SUBMITTING_STEPS[submittingStep]}</p>
+              <p className="mt-1 text-sky-600">This usually takes 5–15 seconds.</p>
+            </div>
+          )}
+
           <div className="pt-2">
             <button
               type="submit"
               disabled={submitting}
-              className="w-full rounded-lg bg-sky-600 px-4 py-3 text-sm font-medium text-white shadow-sm hover:bg-sky-700 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed"
+              className="flex w-full items-center justify-center gap-2 rounded-lg bg-sky-600 px-4 py-3 text-sm font-medium text-white shadow-sm hover:bg-sky-700 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              {submitting ? "Submitting…" : "Submit"}
+              {submitting ? (
+                <>
+                  <span
+                    className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"
+                    aria-hidden
+                  />
+                  {SUBMITTING_STEPS[submittingStep]}
+                </>
+              ) : (
+                "Submit"
+              )}
             </button>
           </div>
         </form>
