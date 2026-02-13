@@ -12,6 +12,7 @@ import type {
 } from "@/types/decision";
 import { runRiskLens } from "@/lenses/risk";
 import { runReversibilityLens } from "@/lenses/reversibility";
+import { runBriefSynthesis } from "@/lenses/brief";
 import { getRun, insertRun, replaceRun } from "@/lib/db/runs";
 
 // ============================================
@@ -91,18 +92,10 @@ async function runLenses(
 
 async function synthesizeBrief(
   intake: DecisionIntake,
-  lensOutputs: LensOutput[]
+  lensOutputs: LensOutput[],
+  clarifications: Clarification[] = []
 ): Promise<DecisionBrief> {
-  // TODO: Implement AI-powered synthesis. Model should produce: title (contextual, e.g. from the decision),
-  // summary, recommendation, key_considerations, next_steps. Set generated_at when the response is received.
-  return {
-    title: "Decision brief",
-    generated_at: new Date().toISOString(),
-    summary: "Pending implementation",
-    recommendation: "Pending implementation",
-    key_considerations: [],
-    next_steps: [],
-  };
+  return runBriefSynthesis(intake, lensOutputs, clarifications);
 }
 
 function isStubBrief(brief: DecisionBrief): boolean {
@@ -168,7 +161,7 @@ async function handleIntake(req: InitialRunRequest): Promise<NextResponse> {
   if (clarification_needed) {
     status = "awaiting_clarification";
   } else {
-    decision_brief = await synthesizeBrief(intake, lens_outputs);
+    decision_brief = await synthesizeBrief(intake, lens_outputs, []);
     status = isStubBrief(decision_brief) ? "pending_brief" : "complete";
   }
 
@@ -222,7 +215,11 @@ async function handleClarification(req: ClarificationRequest): Promise<NextRespo
 
   // Run full analysis with clarification
   const lens_outputs = await runLenses(existingRun.intake, existingRun.clarifications);
-  const decision_brief = await synthesizeBrief(existingRun.intake, lens_outputs);
+  const decision_brief = await synthesizeBrief(
+    existingRun.intake,
+    lens_outputs,
+    existingRun.clarifications
+  );
 
   existingRun.lens_outputs = lens_outputs;
   existingRun.decision_brief = decision_brief;
