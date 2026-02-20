@@ -231,7 +231,15 @@ export function ChatContent() {
         {/* Left: analysis only. Right: Q&A (AI questions first, then user's open-ended chat). */}
         <div className="grid grid-cols-1 gap-8 lg:grid-cols-[1fr_380px]">
           <div className="min-w-0">
-            <ResultContent result={result} />
+            <ResultContent
+              result={result}
+              onRunUpdate={(updated) => {
+                setResult(updated);
+                if (typeof window !== "undefined") {
+                  sessionStorage.setItem(RUN_RESULT_KEY, JSON.stringify(updated));
+                }
+              }}
+            />
           </div>
 
           <aside className="min-w-0 space-y-6 lg:max-w-[380px]">

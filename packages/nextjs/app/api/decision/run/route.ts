@@ -32,7 +32,13 @@ interface ClarificationRequest {
   clarification: Omit<Clarification, "decision_id" | "run_id">;
 }
 
-type RunRequest = InitialRunRequest | ClarificationRequest;
+interface UpdateLensOutputsRequest {
+  type: "update_lens_outputs";
+  run_id: string;
+  lens_outputs: LensOutput[];
+}
+
+type RunRequest = InitialRunRequest | ClarificationRequest | UpdateLensOutputsRequest;
 
 // ============================================
 // Validation
@@ -135,9 +141,11 @@ export async function POST(request: NextRequest) {
       return handleIntake(body);
     } else if (body.type === "clarification") {
       return handleClarification(body);
+    } else if (body.type === "update_lens_outputs") {
+      return handleUpdateLensOutputs(body);
     } else {
       return NextResponse.json(
-        { error: "Invalid request type. Must be 'intake' or 'clarification'" },
+        { error: "Invalid request type. Must be 'intake', 'clarification', or 'update_lens_outputs'" },
         { status: 400 }
       );
     }
@@ -254,6 +262,25 @@ async function handleClarification(req: ClarificationRequest): Promise<NextRespo
   existingRun.clarification_questions = [];
 
   await replaceRun(req.run_id, existingRun);
+
+  return NextResponse.json(existingRun);
+}
+
+async function handleUpdateLensOutputs(req: UpdateLensOutputsRequest): Promise<NextResponse> {
+  if (!req.run_id?.trim()) {
+    return NextResponse.json({ error: "run_id is required" }, { status: 400 });
+  }
+  if (!Array.isArray(req.lens_outputs)) {
+    return NextResponse.json({ error: "lens_outputs must be an array" }, { status: 400 });
+  }
+
+  const existingRun = await getRun(req.run_id.trim());
+  if (!existingRun) {
+    return NextResponse.json({ error: "Run not found" }, { status: 404 });
+  }
+
+  existingRun.lens_outputs = req.lens_outputs;
+  await replaceRun(req.run_id.trim(), existingRun);
 
   return NextResponse.json(existingRun);
 }

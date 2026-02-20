@@ -117,7 +117,16 @@ function RunResultContent() {
         </div>
       </header>
       <div className="mx-auto max-w-3xl px-6 py-8">
-        <ResultContent result={result} />
+        <ResultContent
+          result={result}
+          onRunUpdate={(updated) => {
+            setResult(updated);
+            setRawJson(JSON.stringify(updated, null, 2));
+            if (typeof window !== "undefined") {
+              sessionStorage.setItem(RUN_RESULT_KEY, JSON.stringify(updated));
+            }
+          }}
+        />
 
         {result.clarification_needed &&
           result.clarification_questions &&
