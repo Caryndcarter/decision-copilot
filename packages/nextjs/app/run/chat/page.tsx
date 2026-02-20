@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation";
 import type { DecisionRunResult, LensQuestion } from "@/types/decision";
 import type { ClarificationAnswersMap } from "../clarification-form";
 import { ResultContent } from "../result-content";
+import { ResultChat } from "../result-chat";
 import { ClarificationForm } from "../clarification-form";
 
 const RUN_RESULT_KEY = "decisionRunResult";
@@ -191,9 +192,10 @@ export function ChatContent() {
               : "max-w-3xl"
           }
         >
-          {/* Left: result content (refreshes when clarification is submitted) */}
+          {/* Left: result content + Q&A chat (refreshes when clarification is submitted) */}
           <div className="min-w-0">
             <ResultContent result={result} />
+            <ResultChat runId={result.run_id} />
           </div>
 
           {/* Right: clarification form when there are questions; after submit, keep showing "Questions you answered" */}
