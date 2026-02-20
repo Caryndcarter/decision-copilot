@@ -907,7 +907,10 @@ export function ResultContent({ result, className = "", onRunUpdate }: ResultCon
                   />
                   </div>
                 </div>
-                <div className="mt-3 flex items-center gap-2">
+                <div className="mt-2 flex items-center justify-between gap-2">
+                  <p className="text-xs text-slate-500">
+                    Edit inline; changes save when you click away or press Save.
+                  </p>
                   <button
                     type="button"
                     onClick={() => {
@@ -930,15 +933,12 @@ export function ResultContent({ result, className = "", onRunUpdate }: ResultCon
                       });
                     }}
                     disabled={briefSaving}
-                    className="rounded bg-sky-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-sky-700 disabled:opacity-50"
+                    className="rounded bg-sky-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-sky-700 disabled:opacity-50"
                   >
                     {briefSaving ? "Saving…" : "Save"}
                   </button>
-                  {briefError && <p className="text-sm text-red-600">{briefError}</p>}
                 </div>
-                <p className="mt-2 text-xs text-slate-500">
-                  Edit inline; changes save when you click away or press Save.
-                </p>
+                {briefError && <p className="mt-1 text-sm text-red-600">{briefError}</p>}
               </>
             ) : (
               <>
