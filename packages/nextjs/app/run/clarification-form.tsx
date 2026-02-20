@@ -16,9 +16,11 @@ const CLARIFICATION_SUBMITTING_STEPS = [
   "Preparing your recommendation…",
 ];
 
+export type ClarificationAnswersMap = Record<string, string | number | boolean>;
+
 export interface ClarificationFormProps {
   result: DecisionRunResult;
-  onUpdatedResult: (updated: DecisionRunResult) => void;
+  onUpdatedResult: (updated: DecisionRunResult, submitted?: { questions: LensQuestion[]; answers: ClarificationAnswersMap }) => void;
   /** Optional: compact/sidebar layout (e.g. for chat page) */
   variant?: "default" | "sidebar";
 }
@@ -111,7 +113,7 @@ export function ClarificationForm({
         setError(data.error || `Request failed (${res.status})`);
         return;
       }
-      onUpdatedResult(data as DecisionRunResult);
+      onUpdatedResult(data as DecisionRunResult, { questions, answers: clarificationAnswers });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {

@@ -1,19 +1,69 @@
 "use client";
 
-import { useEffect, useState, Suspense } from "react";
+import { useEffect, useState, useRef, Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import type { DecisionRunResult } from "@/types/decision";
+import type { DecisionRunResult, LensQuestion } from "@/types/decision";
+import type { ClarificationAnswersMap } from "../clarification-form";
 import { ResultContent } from "../result-content";
 import { ClarificationForm } from "../clarification-form";
 
 const RUN_RESULT_KEY = "decisionRunResult";
+
+function questionKey(q: { lens: string; question_id: string }) {
+  return `${q.lens}-${q.question_id}`;
+}
+
+function formatAnswerDisplay(q: LensQuestion, value: string | number | boolean | undefined): string {
+  if (value === undefined || value === null || value === "") return "—";
+  if (q.answer_type === "boolean") {
+    if (value === "unknown") return "Unknown";
+    return value === true || value === "yes" ? "Yes" : "No";
+  }
+  if (q.answer_type === "percentage") return `${value}%`;
+  if (typeof value === "number") return String(value);
+  return String(value);
+}
+
+/** Read-only copy of the clarification form: same layout with questions + answers (right side unchanged after submit) */
+function AnsweredQuestionsSidebar({
+  questions,
+  answers,
+}: {
+  questions: LensQuestion[];
+  answers: ClarificationAnswersMap;
+}) {
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm sticky top-6 border-sky-200 bg-sky-50/50">
+      <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+        Follow-up questions
+      </h2>
+      <p className="mt-1 mb-4 text-sm text-slate-600">
+        The analysis on the left has been updated with your answers below.
+      </p>
+      <div className="space-y-4">
+        {questions.map((q) => (
+          <div key={questionKey(q)}>
+            <p className="text-sm font-medium text-slate-700">{q.question_text}</p>
+            <p className="mt-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-slate-800">
+              {formatAnswerDisplay(q, answers[questionKey(q)])}
+            </p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 export function ChatContent() {
   const searchParams = useSearchParams();
   const [result, setResult] = useState<DecisionRunResult | null>(null);
   const [missing, setMissing] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
+  /** Keep showing questions + answers on the right after user submits (right side unchanged, left refreshes) */
+  const [lastClarificationQuestions, setLastClarificationQuestions] = useState<LensQuestion[] | null>(null);
+  const [lastClarificationAnswers, setLastClarificationAnswers] = useState<ClarificationAnswersMap | null>(null);
+  const prevRunIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     const run_id = searchParams.get("run_id");
@@ -52,8 +102,29 @@ export function ChatContent() {
     }
   }, [searchParams]);
 
-  const handleUpdatedResult = (updated: DecisionRunResult) => {
+  // Persist questions (and answers after submit) for the right panel; clear only when switching to a different run that has none
+  useEffect(() => {
+    if (!result) return;
+    const hasQuestions = result.clarification_questions && result.clarification_questions.length > 0;
+    if (hasQuestions) {
+      setLastClarificationQuestions(result.clarification_questions);
+      prevRunIdRef.current = result.run_id;
+    } else if (prevRunIdRef.current !== result.run_id) {
+      setLastClarificationQuestions(null);
+      setLastClarificationAnswers(null);
+      prevRunIdRef.current = result.run_id;
+    }
+  }, [result]);
+
+  const handleUpdatedResult = (
+    updated: DecisionRunResult,
+    submitted?: { questions: LensQuestion[]; answers: ClarificationAnswersMap }
+  ) => {
     setResult(updated);
+    if (submitted) {
+      setLastClarificationQuestions(submitted.questions);
+      setLastClarificationAnswers(submitted.answers);
+    }
     if (typeof window !== "undefined") {
       sessionStorage.setItem(RUN_RESULT_KEY, JSON.stringify(updated));
     }
@@ -87,10 +158,16 @@ export function ChatContent() {
     );
   }
 
-  const showQuestions =
+  const hasPendingQuestions =
     result.clarification_needed &&
     result.clarification_questions &&
     result.clarification_questions.length > 0;
+  const hasAnsweredSnapshot =
+    lastClarificationQuestions &&
+    lastClarificationQuestions.length > 0 &&
+    lastClarificationAnswers &&
+    Object.keys(lastClarificationAnswers).length > 0;
+  const showRightPanel = hasPendingQuestions || hasAnsweredSnapshot;
 
   return (
     <main className="min-h-screen bg-slate-50">
@@ -109,7 +186,7 @@ export function ChatContent() {
 
         <div
           className={
-            showQuestions
+            showRightPanel
               ? "grid grid-cols-1 gap-8 lg:grid-cols-[1fr_380px]"
               : "max-w-3xl"
           }
@@ -119,14 +196,21 @@ export function ChatContent() {
             <ResultContent result={result} />
           </div>
 
-          {/* Right: clarification questions only when in that stage */}
-          {showQuestions && (
+          {/* Right: clarification form when there are questions; after submit, keep showing "Questions you answered" */}
+          {showRightPanel && (
             <aside className="min-w-0 lg:max-w-[380px]">
-              <ClarificationForm
-                result={result}
-                onUpdatedResult={handleUpdatedResult}
-                variant="sidebar"
-              />
+              {hasPendingQuestions ? (
+                <ClarificationForm
+                  result={result}
+                  onUpdatedResult={handleUpdatedResult}
+                  variant="sidebar"
+                />
+              ) : lastClarificationQuestions && lastClarificationAnswers ? (
+                <AnsweredQuestionsSidebar
+                  questions={lastClarificationQuestions}
+                  answers={lastClarificationAnswers}
+                />
+              ) : null}
             </aside>
           )}
         </div>
