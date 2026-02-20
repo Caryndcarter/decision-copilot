@@ -10,9 +10,11 @@ export interface ChatMessage {
 export interface ResultChatProps {
   runId: string;
   className?: string;
+  /** When true, hide the "Ask about this analysis" header (e.g. inside a unified section) */
+  hideHeader?: boolean;
 }
 
-export function ResultChat({ runId, className = "" }: ResultChatProps) {
+export function ResultChat({ runId, className = "", hideHeader = false }: ResultChatProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -64,16 +66,18 @@ export function ResultChat({ runId, className = "" }: ResultChatProps) {
   }
 
   return (
-    <div className={`mt-8 ${className}`}>
-      <div className="rounded-lg border border-slate-200 bg-white shadow-sm">
-        <div className="border-b border-slate-200 bg-slate-50/80 px-4 py-3">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-600">
-            Ask about this analysis
-          </h2>
-          <p className="mt-0.5 text-xs text-slate-500">
-            Ask open-ended questions about the result; answers are based on your decision context and analysis.
-          </p>
-        </div>
+    <div className={hideHeader ? className : `mt-8 ${className}`}>
+      <div className={hideHeader ? "" : "rounded-lg border border-slate-200 bg-white shadow-sm"}>
+        {!hideHeader && (
+          <div className="border-b border-slate-200 bg-slate-50/80 px-4 py-3">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-600">
+              Ask about this analysis
+            </h2>
+            <p className="mt-0.5 text-xs text-slate-500">
+              Ask open-ended questions about the result; answers are based on your decision context and analysis.
+            </p>
+          </div>
+        )}
 
         <div
           ref={messagesContainerRef}

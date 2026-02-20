@@ -38,7 +38,17 @@ interface UpdateLensOutputsRequest {
   lens_outputs: LensOutput[];
 }
 
-type RunRequest = InitialRunRequest | ClarificationRequest | UpdateLensOutputsRequest;
+interface UpdateBriefRequest {
+  type: "update_brief";
+  run_id: string;
+  decision_brief: Partial<DecisionBrief>;
+}
+
+type RunRequest =
+  | InitialRunRequest
+  | ClarificationRequest
+  | UpdateLensOutputsRequest
+  | UpdateBriefRequest;
 
 // ============================================
 // Validation
@@ -143,9 +153,14 @@ export async function POST(request: NextRequest) {
       return handleClarification(body);
     } else if (body.type === "update_lens_outputs") {
       return handleUpdateLensOutputs(body);
+    } else if (body.type === "update_brief") {
+      return handleUpdateBrief(body);
     } else {
       return NextResponse.json(
-        { error: "Invalid request type. Must be 'intake', 'clarification', or 'update_lens_outputs'" },
+        {
+          error:
+            "Invalid request type. Must be 'intake', 'clarification', 'update_lens_outputs', or 'update_brief'",
+        },
         { status: 400 }
       );
     }
@@ -280,6 +295,40 @@ async function handleUpdateLensOutputs(req: UpdateLensOutputsRequest): Promise<N
   }
 
   existingRun.lens_outputs = req.lens_outputs;
+  await replaceRun(req.run_id.trim(), existingRun);
+
+  return NextResponse.json(existingRun);
+}
+
+async function handleUpdateBrief(req: UpdateBriefRequest): Promise<NextResponse> {
+  if (!req.run_id?.trim()) {
+    return NextResponse.json({ error: "run_id is required" }, { status: 400 });
+  }
+  if (!req.decision_brief || typeof req.decision_brief !== "object") {
+    return NextResponse.json({ error: "decision_brief object is required" }, { status: 400 });
+  }
+
+  const existingRun = await getRun(req.run_id.trim());
+  if (!existingRun) {
+    return NextResponse.json({ error: "Run not found" }, { status: 404 });
+  }
+
+  const current = existingRun.decision_brief;
+  if (!current) {
+    return NextResponse.json(
+      { error: "Run has no decision brief to update" },
+      { status: 400 }
+    );
+  }
+
+  existingRun.decision_brief = {
+    title: req.decision_brief.title ?? current.title,
+    generated_at: req.decision_brief.generated_at ?? current.generated_at,
+    summary: req.decision_brief.summary ?? current.summary,
+    recommendation: req.decision_brief.recommendation ?? current.recommendation,
+    key_considerations: req.decision_brief.key_considerations ?? current.key_considerations,
+    next_steps: req.decision_brief.next_steps ?? current.next_steps,
+  };
   await replaceRun(req.run_id.trim(), existingRun);
 
   return NextResponse.json(existingRun);

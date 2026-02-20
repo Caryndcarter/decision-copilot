@@ -23,6 +23,8 @@ export interface ClarificationFormProps {
   onUpdatedResult: (updated: DecisionRunResult, submitted?: { questions: LensQuestion[]; answers: ClarificationAnswersMap }) => void;
   /** Optional: compact/sidebar layout (e.g. for chat page) */
   variant?: "default" | "sidebar";
+  /** When true with variant=sidebar, render without outer Card (for use inside a unified section) */
+  embedded?: boolean;
 }
 
 function Section({
@@ -54,6 +56,7 @@ export function ClarificationForm({
   result,
   onUpdatedResult,
   variant = "default",
+  embedded = false,
 }: ClarificationFormProps) {
   const [clarificationAnswers, setClarificationAnswers] = useState<ClarificationAnswers>({});
   const [submitting, setSubmitting] = useState(false);
@@ -122,9 +125,12 @@ export function ClarificationForm({
   };
 
   const isSidebar = variant === "sidebar";
+  const isEmbedded = embedded && isSidebar;
+  const Wrapper = isEmbedded ? "div" : Card;
+  const wrapperClassName = isEmbedded ? "pt-0" : isSidebar ? "border-sky-200 bg-sky-50/50" : "mt-6 border-sky-200 bg-sky-50/50";
 
   return (
-    <Card className={isSidebar ? "border-sky-200 bg-sky-50/50" : "mt-6 border-sky-200 bg-sky-50/50"}>
+    <Wrapper className={wrapperClassName}>
       <Section title="Follow-up questions">
         <p className="mb-4 text-sm text-slate-600">
           Answer these to refine the analysis. We'll re-run and show an updated result.
@@ -313,6 +319,6 @@ export function ClarificationForm({
           </button>
         </form>
       </Section>
-    </Card>
+    </Wrapper>
   );
 }

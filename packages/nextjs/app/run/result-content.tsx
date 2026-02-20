@@ -1,14 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import type {
   DecisionRunResult,
   LensOutput,
   BlindSpot,
   Tradeoff,
   StakeholderImpact,
+  DecisionBrief,
 } from "@/types/decision";
-import { LensBoxEditor } from "./lens-box-editor";
+import { LensBoxEditor, type LensBoxEditorHandle } from "./lens-box-editor";
 
 function formatBriefDate(iso: string): string {
   try {
@@ -373,6 +374,11 @@ export function ResultContent({ result, className = "", onRunUpdate }: ResultCon
   const [draftStakeholderImpacts, setDraftStakeholderImpacts] = useState<StakeholderImpact[]>([]);
   const [saving, setSaving] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
+  const [briefSaving, setBriefSaving] = useState(false);
+  const [briefError, setBriefError] = useState<string | null>(null);
+  const [briefDraft, setBriefDraft] = useState<DecisionBrief | null>(null);
+  const keyConsiderationsRef = useRef<LensBoxEditorHandle>(null);
+  const nextStepsRef = useRef<LensBoxEditorHandle>(null);
 
   const riskLens = result.lens_outputs?.find((o) => o.lens === "risk") as
     | (LensOutput & { top_risks?: string[] })
@@ -450,6 +456,44 @@ export function ResultContent({ result, className = "", onRunUpdate }: ResultCon
   const canEdit =
     Boolean(onRunUpdate) &&
     (result.status === "complete" || result.status === "pending_brief");
+
+  useEffect(() => {
+    if (result.decision_brief) setBriefDraft({ ...result.decision_brief });
+  }, [result.decision_brief]);
+
+  async function saveBrief(updates: Partial<DecisionBrief>) {
+    if (!onRunUpdate || !result.decision_brief) return;
+    setBriefError(null);
+    setBriefSaving(true);
+    try {
+      const res = await fetch("/api/decision/run", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: "update_brief",
+          run_id: result.run_id,
+          decision_brief: { ...result.decision_brief, ...updates },
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setBriefError(data.error || "Failed to save brief");
+        return;
+      }
+      onRunUpdate(data as DecisionRunResult);
+    } catch (err) {
+      setBriefError(err instanceof Error ? err.message : "Failed to save brief");
+    } finally {
+      setBriefSaving(false);
+    }
+  }
+
+  const isStubBrief =
+    result.decision_brief &&
+    result.decision_brief.summary === "Pending implementation" &&
+    result.decision_brief.recommendation === "Pending implementation" &&
+    !result.decision_brief.key_considerations?.length &&
+    !result.decision_brief.next_steps?.length;
 
   return (
     <div className={className}>
@@ -772,9 +816,19 @@ export function ResultContent({ result, className = "", onRunUpdate }: ResultCon
       {result.decision_brief && (
         <div className="mt-6 rounded-lg border border-sky-200 bg-sky-50 p-4 shadow-sm">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <h2 className="text-lg font-semibold text-slate-900">
-              {result.decision_brief.title || "Decision brief"}
-            </h2>
+            {canEdit && !isStubBrief && briefDraft ? (
+              <input
+                type="text"
+                value={briefDraft.title}
+                onChange={(e) => setBriefDraft((b) => (b ? { ...b, title: e.target.value } : null))}
+                className="w-full max-w-md rounded border border-sky-300 bg-white px-2 py-1 text-lg font-semibold text-slate-900"
+                placeholder="Brief title"
+              />
+            ) : (
+              <h2 className="text-lg font-semibold text-slate-900">
+                {result.decision_brief.title || "Decision brief"}
+              </h2>
+            )}
             {result.decision_brief.generated_at && (
               <p className="text-xs text-slate-500">
                 Generated {formatBriefDate(result.decision_brief.generated_at)}
@@ -782,14 +836,74 @@ export function ResultContent({ result, className = "", onRunUpdate }: ResultCon
             )}
           </div>
           <div className="mt-3">
-            {result.decision_brief.summary === "Pending implementation" &&
-            result.decision_brief.recommendation === "Pending implementation" &&
-            !result.decision_brief.key_considerations?.length &&
-            !result.decision_brief.next_steps?.length ? (
+            {isStubBrief ? (
               <p className="text-slate-500 italic">
                 Brief synthesis not yet implemented. Your answers were used to re-run the lenses above; a
                 summarized recommendation will appear here once synthesis is added.
               </p>
+            ) : canEdit && briefDraft ? (
+              <>
+                <label className="block text-sm font-medium text-slate-600">Summary</label>
+                <textarea
+                  value={briefDraft.summary}
+                  onChange={(e) => setBriefDraft((b) => (b ? { ...b, summary: e.target.value } : null))}
+                  className="mt-1 w-full rounded border border-sky-300 bg-white px-2 py-1.5 text-slate-800"
+                  rows={3}
+                />
+                <label className="mt-3 block text-sm font-medium text-slate-600">Recommendation</label>
+                <textarea
+                  value={briefDraft.recommendation}
+                  onChange={(e) =>
+                    setBriefDraft((b) => (b ? { ...b, recommendation: e.target.value } : null))
+                  }
+                  className="mt-1 w-full rounded border border-sky-300 bg-white px-2 py-1.5 text-slate-800"
+                  rows={2}
+                />
+                <div className="mt-3">
+                  <label className="block text-sm font-medium text-slate-600">Key considerations</label>
+                  <LensBoxEditor
+                    ref={keyConsiderationsRef}
+                    editorKey="brief.key_considerations"
+                    items={briefDraft.key_considerations ?? []}
+                    onSave={(items) => setBriefDraft((b) => (b ? { ...b, key_considerations: items } : null))}
+                    editable={true}
+                    hideSaveHint
+                  />
+                </div>
+                <div className="mt-3">
+                  <label className="block text-sm font-medium text-slate-600">Next steps</label>
+                  <LensBoxEditor
+                    ref={nextStepsRef}
+                    editorKey="brief.next_steps"
+                    items={briefDraft.next_steps ?? []}
+                    onSave={(items) => setBriefDraft((b) => (b ? { ...b, next_steps: items } : null))}
+                    editable={true}
+                    hideSaveHint
+                  />
+                </div>
+                <div className="mt-3 flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const keyConsiderations =
+                        keyConsiderationsRef.current?.getItems() ?? briefDraft.key_considerations ?? [];
+                      const nextSteps = nextStepsRef.current?.getItems() ?? briefDraft.next_steps ?? [];
+                      saveBrief({
+                        title: briefDraft.title,
+                        summary: briefDraft.summary,
+                        recommendation: briefDraft.recommendation,
+                        key_considerations: keyConsiderations,
+                        next_steps: nextSteps,
+                      });
+                    }}
+                    disabled={briefSaving}
+                    className="rounded bg-sky-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-sky-700 disabled:opacity-50"
+                  >
+                    {briefSaving ? "Saving…" : "Save"}
+                  </button>
+                  {briefError && <p className="text-sm text-red-600">{briefError}</p>}
+                </div>
+              </>
             ) : (
               <>
                 <p className="text-slate-800">{result.decision_brief.summary}</p>

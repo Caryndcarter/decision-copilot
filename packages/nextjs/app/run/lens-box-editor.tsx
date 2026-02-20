@@ -2,7 +2,7 @@
 
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useImperativeHandle, useRef, forwardRef } from "react";
 
 /** Convert string[] to Tiptap doc with bullet list */
 function itemsToContent(items: string[]) {
@@ -50,16 +50,26 @@ export interface LensBoxEditorProps {
   className?: string;
   /** Unique key so editor is recreated when switching section (e.g. "risk.top_risks") */
   editorKey: string;
+  /** When true, hide the "save when you click away" hint and Save button (e.g. inside brief) */
+  hideSaveHint?: boolean;
 }
 
-export function LensBoxEditor({
-  items,
-  onSave,
-  editable,
-  placeholder = "Add items…",
-  className = "",
-  editorKey,
-}: LensBoxEditorProps) {
+export interface LensBoxEditorHandle {
+  getItems(): string[];
+}
+
+export const LensBoxEditor = forwardRef<LensBoxEditorHandle, LensBoxEditorProps>(function LensBoxEditor(
+  {
+    items,
+    onSave,
+    editable,
+    placeholder = "Add items…",
+    className = "",
+    editorKey,
+    hideSaveHint = false,
+  },
+  ref
+) {
   const onSaveRef = useRef(onSave);
   onSaveRef.current = onSave;
 
@@ -97,6 +107,10 @@ export function LensBoxEditor({
     onSaveRef.current(next);
   }, [editor]);
 
+  const getItems = useCallback(() => (editor ? contentToItems(editor.getJSON()) : []), [editor]);
+
+  useImperativeHandle(ref, () => ({ getItems }), [getItems]);
+
   if (!editor) {
     return (
       <div className={`animate-pulse rounded border border-slate-200 bg-slate-50 p-3 ${className}`}>
@@ -108,7 +122,7 @@ export function LensBoxEditor({
   return (
     <div className={className}>
       <EditorContent editor={editor} />
-      {editable && (
+      {editable && !hideSaveHint && (
         <div className="mt-2 flex items-center justify-between gap-2">
           <p className="text-xs text-slate-500">Edit inline; changes save when you click away or press Save.</p>
           <button
@@ -122,4 +136,4 @@ export function LensBoxEditor({
       )}
     </div>
   );
-}
+});

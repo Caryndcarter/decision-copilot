@@ -55,12 +55,14 @@ function formatAnswerDisplay(q: LensQuestion, value: string | number | boolean |
 function AnsweredQuestionsSidebar({
   questions,
   answers,
+  embedded = false,
 }: {
   questions: LensQuestion[];
   answers: ClarificationAnswersMap;
+  embedded?: boolean;
 }) {
   return (
-    <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm border-sky-200 bg-sky-50/50">
+    <div className={embedded ? "pt-0" : "rounded-lg border border-slate-200 bg-white p-4 shadow-sm border-sky-200 bg-sky-50/50"}>
       <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
         Follow-up questions
       </h2>
@@ -228,7 +230,7 @@ export function ChatContent() {
         </div>
       </header>
       <div className="mx-auto max-w-7xl px-6 py-8">
-        {/* Left: analysis only. Right: Q&A (AI questions first, then user's open-ended chat). */}
+        {/* Left: analysis only. Right: one chat-like section (clarification + open-ended chat). */}
         <div className="grid grid-cols-1 gap-8 lg:grid-cols-[1fr_380px]">
           <div className="min-w-0">
             <ResultContent
@@ -242,23 +244,35 @@ export function ChatContent() {
             />
           </div>
 
-          <aside className="min-w-0 space-y-6 lg:max-w-[380px]">
-            {/* AI model's questions first (form or answered snapshot) */}
-            {hasPendingQuestions ? (
-              <ClarificationForm
-                result={result}
-                onUpdatedResult={handleUpdatedResult}
-                variant="sidebar"
-              />
-            ) : lastClarificationQuestions && lastClarificationAnswers ? (
-              <AnsweredQuestionsSidebar
-                questions={lastClarificationQuestions}
-                answers={lastClarificationAnswers}
-              />
-            ) : null}
+          <aside className="min-w-0 lg:max-w-[380px]">
+            <div className="rounded-lg border border-slate-200 bg-white shadow-sm overflow-hidden">
+              <div className="border-b border-slate-200 bg-slate-50/80 px-4 py-3">
+                <h2 className="text-base font-semibold text-slate-800">Discuss & clarify</h2>
+                <p className="mt-1 text-sm text-slate-600">
+                  Answer the AI&apos;s follow-up questions to refine the analysis, then ask your own questions below.
+                </p>
+              </div>
+              <div className="p-4 space-y-6">
+                {hasPendingQuestions ? (
+                  <ClarificationForm
+                    result={result}
+                    onUpdatedResult={handleUpdatedResult}
+                    variant="sidebar"
+                    embedded
+                  />
+                ) : lastClarificationQuestions && lastClarificationAnswers ? (
+                  <AnsweredQuestionsSidebar
+                    questions={lastClarificationQuestions}
+                    answers={lastClarificationAnswers}
+                    embedded
+                  />
+                ) : null}
 
-            {/* User's open-ended Q&A chat below */}
-            <ResultChat runId={result.run_id} />
+                <div className={hasPendingQuestions || hasAnsweredSnapshot ? "border-t border-slate-200 pt-4" : ""}>
+                  <ResultChat runId={result.run_id} hideHeader />
+                </div>
+              </div>
+            </div>
           </aside>
         </div>
       </div>
