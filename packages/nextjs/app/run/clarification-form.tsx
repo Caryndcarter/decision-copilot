@@ -124,7 +124,7 @@ export function ClarificationForm({
   const isSidebar = variant === "sidebar";
 
   return (
-    <Card className={isSidebar ? "border-sky-200 bg-sky-50/50 sticky top-6" : "mt-6 border-sky-200 bg-sky-50/50"}>
+    <Card className={isSidebar ? "border-sky-200 bg-sky-50/50" : "mt-6 border-sky-200 bg-sky-50/50"}>
       <Section title="Follow-up questions">
         <p className="mb-4 text-sm text-slate-600">
           Answer these to refine the analysis. We'll re-run and show an updated result.

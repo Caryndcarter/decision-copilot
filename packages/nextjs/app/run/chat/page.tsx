@@ -35,7 +35,7 @@ function AnsweredQuestionsSidebar({
   answers: ClarificationAnswersMap;
 }) {
   return (
-    <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm sticky top-6 border-sky-200 bg-sky-50/50">
+    <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm border-sky-200 bg-sky-50/50">
       <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
         Follow-up questions
       </h2>
@@ -168,7 +168,6 @@ export function ChatContent() {
     lastClarificationQuestions.length > 0 &&
     lastClarificationAnswers &&
     Object.keys(lastClarificationAnswers).length > 0;
-  const showRightPanel = hasPendingQuestions || hasAnsweredSnapshot;
 
   return (
     <main className="min-h-screen bg-slate-50">
@@ -185,36 +184,30 @@ export function ChatContent() {
           </div>
         </header>
 
-        <div
-          className={
-            showRightPanel
-              ? "grid grid-cols-1 gap-8 lg:grid-cols-[1fr_380px]"
-              : "max-w-3xl"
-          }
-        >
-          {/* Left: result content + Q&A chat (refreshes when clarification is submitted) */}
+        {/* Left: analysis only. Right: Q&A (AI questions first, then user's open-ended chat). */}
+        <div className="grid grid-cols-1 gap-8 lg:grid-cols-[1fr_380px]">
           <div className="min-w-0">
             <ResultContent result={result} />
-            <ResultChat runId={result.run_id} />
           </div>
 
-          {/* Right: clarification form when there are questions; after submit, keep showing "Questions you answered" */}
-          {showRightPanel && (
-            <aside className="min-w-0 lg:max-w-[380px]">
-              {hasPendingQuestions ? (
-                <ClarificationForm
-                  result={result}
-                  onUpdatedResult={handleUpdatedResult}
-                  variant="sidebar"
-                />
-              ) : lastClarificationQuestions && lastClarificationAnswers ? (
-                <AnsweredQuestionsSidebar
-                  questions={lastClarificationQuestions}
-                  answers={lastClarificationAnswers}
-                />
-              ) : null}
-            </aside>
-          )}
+          <aside className="min-w-0 space-y-6 lg:max-w-[380px]">
+            {/* AI model's questions first (form or answered snapshot) */}
+            {hasPendingQuestions ? (
+              <ClarificationForm
+                result={result}
+                onUpdatedResult={handleUpdatedResult}
+                variant="sidebar"
+              />
+            ) : lastClarificationQuestions && lastClarificationAnswers ? (
+              <AnsweredQuestionsSidebar
+                questions={lastClarificationQuestions}
+                answers={lastClarificationAnswers}
+              />
+            ) : null}
+
+            {/* User's open-ended Q&A chat below */}
+            <ResultChat runId={result.run_id} />
+          </aside>
         </div>
       </div>
     </main>

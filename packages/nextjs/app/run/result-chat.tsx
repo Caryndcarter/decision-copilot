@@ -17,11 +17,13 @@ export function ResultChat({ runId, className = "" }: ResultChatProps) {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+    const el = messagesContainerRef.current;
+    if (!el) return;
+    el.scrollTop = el.scrollHeight;
+  }, [messages, loading]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -73,7 +75,10 @@ export function ResultChat({ runId, className = "" }: ResultChatProps) {
           </p>
         </div>
 
-        <div className="max-h-[420px] min-h-[200px] overflow-y-auto p-4">
+        <div
+          ref={messagesContainerRef}
+          className="max-h-[420px] min-h-[200px] overflow-y-auto p-4"
+        >
           {messages.length === 0 && !loading && (
             <p className="text-sm text-slate-500">
               Type a question below (e.g. &ldquo;What&apos;s the biggest risk?&rdquo; or &ldquo;How reversible is this?&rdquo;).
@@ -105,7 +110,6 @@ export function ResultChat({ runId, className = "" }: ResultChatProps) {
               </div>
             </div>
           )}
-          <div ref={messagesEndRef} />
         </div>
 
         <form onSubmit={handleSubmit} className="border-t border-slate-200 p-4">
