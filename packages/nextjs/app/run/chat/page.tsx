@@ -8,6 +8,7 @@ import type { ClarificationAnswersMap } from "../clarification-form";
 import { ResultContent } from "../result-content";
 import { ResultChat } from "../result-chat";
 import { ClarificationForm } from "../clarification-form";
+import { ClarificationAnswerEditor } from "../clarification-answer-editor";
 
 const RUN_RESULT_KEY = "decisionRunResult";
 const CLARIFICATION_SNAPSHOT_KEY = "decisionRunClarificationSnapshot";
@@ -51,33 +52,194 @@ function formatAnswerDisplay(q: LensQuestion, value: string | number | boolean |
   return String(value);
 }
 
-/** Read-only copy of the clarification form: same layout with questions + answers (right side unchanged after submit) */
+/** Clarification answers: read-only view or editable (Tiptap for short_text, inputs for others). Saves to onSave (parent persists to state + sessionStorage). */
 function AnsweredQuestionsSidebar({
   questions,
   answers,
   embedded = false,
+  onSave,
 }: {
   questions: LensQuestion[];
   answers: ClarificationAnswersMap;
   embedded?: boolean;
+  onSave?: (answers: ClarificationAnswersMap) => void;
 }) {
+  const [editing, setEditing] = useState(false);
+  const [draftAnswers, setDraftAnswers] = useState<ClarificationAnswersMap>({ ...answers });
+
+  useEffect(() => {
+    setDraftAnswers({ ...answers });
+  }, [answers, editing]);
+
+  const handleSave = () => {
+    onSave?.(draftAnswers);
+    setEditing(false);
+  };
+
+  const wrapperClass = embedded ? "pt-0" : "rounded-lg border border-slate-200 bg-white p-4 shadow-sm border-sky-200 bg-sky-50/50";
+
+  if (!editing) {
+    return (
+      <div className={wrapperClass}>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+            Follow-up questions
+          </h2>
+          {onSave && (
+            <button
+              type="button"
+              onClick={() => setEditing(true)}
+              className="text-sm text-sky-600 hover:text-sky-700"
+            >
+              Edit
+            </button>
+          )}
+        </div>
+        <p className="mt-1 mb-4 text-sm text-slate-600">
+          The analysis on the left has been updated with your answers below.
+        </p>
+        <div className="space-y-4">
+          {questions.map((q) => (
+            <div key={questionKey(q)}>
+              <p className="text-sm font-medium text-slate-700">{q.question_text}</p>
+              <p className="mt-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-slate-800">
+                {formatAnswerDisplay(q, answers[questionKey(q)])}
+              </p>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className={embedded ? "pt-0" : "rounded-lg border border-slate-200 bg-white p-4 shadow-sm border-sky-200 bg-sky-50/50"}>
+    <div className={wrapperClass}>
       <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
         Follow-up questions
       </h2>
       <p className="mt-1 mb-4 text-sm text-slate-600">
-        The analysis on the left has been updated with your answers below.
+        Edit your answers below; they’re saved locally and used for context in chat.
       </p>
       <div className="space-y-4">
         {questions.map((q) => (
           <div key={questionKey(q)}>
-            <p className="text-sm font-medium text-slate-700">{q.question_text}</p>
-            <p className="mt-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-slate-800">
-              {formatAnswerDisplay(q, answers[questionKey(q)])}
-            </p>
+            <label htmlFor={questionKey(q)} className="block text-sm font-medium text-slate-700">
+              {q.question_text}
+            </label>
+            {q.answer_type === "enum" && q.options && q.options.length > 0 ? (
+              <select
+                id={questionKey(q)}
+                value={String(draftAnswers[questionKey(q)] ?? "")}
+                onChange={(e) =>
+                  setDraftAnswers((prev) => ({ ...prev, [questionKey(q)]: e.target.value }))
+                }
+                className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-800 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
+              >
+                <option value="">Select…</option>
+                {q.options.map((opt) => (
+                  <option key={opt} value={opt}>
+                    {opt}
+                  </option>
+                ))}
+              </select>
+            ) : q.answer_type === "boolean" ? (
+              <select
+                id={questionKey(q)}
+                value={
+                  draftAnswers[questionKey(q)] === true
+                    ? "yes"
+                    : draftAnswers[questionKey(q)] === false
+                      ? "no"
+                      : draftAnswers[questionKey(q)] === "unknown"
+                        ? "unknown"
+                        : ""
+                }
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setDraftAnswers((prev) => ({
+                    ...prev,
+                    [questionKey(q)]: v === "yes" ? true : v === "no" ? false : v === "unknown" ? "unknown" : "",
+                  }));
+                }}
+                className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-800 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
+              >
+                <option value="">Select…</option>
+                <option value="yes">Yes</option>
+                <option value="no">No</option>
+                <option value="unknown">Unknown</option>
+              </select>
+            ) : q.answer_type === "numeric" ? (
+              <input
+                id={questionKey(q)}
+                type="number"
+                value={
+                  draftAnswers[questionKey(q)] !== undefined
+                    ? String(draftAnswers[questionKey(q)])
+                    : ""
+                }
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setDraftAnswers((prev) => ({
+                    ...prev,
+                    [questionKey(q)]: v === "" ? 0 : Number(v),
+                  }));
+                }}
+                className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-800 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
+              />
+            ) : q.answer_type === "percentage" ? (
+              <div className="flex items-center gap-2">
+                <input
+                  id={questionKey(q)}
+                  type="number"
+                  min={0}
+                  max={100}
+                  step={1}
+                  value={
+                    draftAnswers[questionKey(q)] !== undefined
+                      ? String(draftAnswers[questionKey(q)])
+                      : ""
+                  }
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setDraftAnswers((prev) => ({
+                      ...prev,
+                      [questionKey(q)]: v === "" ? 0 : Number(v),
+                    }));
+                  }}
+                  placeholder="0–100"
+                  className="mt-1 w-24 rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-800 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
+                />
+                <span className="text-slate-500">%</span>
+              </div>
+            ) : (
+              <div className="mt-1">
+                <ClarificationAnswerEditor
+                  editorKey={`clarification-${questionKey(q)}`}
+                  value={String(draftAnswers[questionKey(q)] ?? "")}
+                  onChange={(value) =>
+                    setDraftAnswers((prev) => ({ ...prev, [questionKey(q)]: value }))
+                  }
+                />
+              </div>
+            )}
           </div>
         ))}
+      </div>
+      <div className="mt-4 flex gap-2">
+        <button
+          type="button"
+          onClick={handleSave}
+          className="rounded-lg bg-sky-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-sky-700"
+        >
+          Save
+        </button>
+        <button
+          type="button"
+          onClick={() => setEditing(false)}
+          className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
+        >
+          Cancel
+        </button>
       </div>
     </div>
   );
@@ -249,7 +411,7 @@ export function ChatContent() {
               <div className="border-b border-slate-200 bg-slate-50/80 px-4 py-3">
                 <h2 className="text-base font-semibold text-slate-800">Discuss & clarify</h2>
                 <p className="mt-1 text-sm text-slate-600">
-                  Answer the AI&apos;s follow-up questions to refine the analysis, then ask your own questions below.
+                  Answer the follow-up questions above to refine the analysis. You can also use the chat below at any time—including to ask about the questions themselves.
                 </p>
               </div>
               <div className="p-4 space-y-6">
@@ -265,6 +427,12 @@ export function ChatContent() {
                     questions={lastClarificationQuestions}
                     answers={lastClarificationAnswers}
                     embedded
+                    onSave={(newAnswers) => {
+                      setLastClarificationAnswers(newAnswers);
+                      if (lastClarificationQuestions?.length) {
+                        setStoredSnapshot(result.run_id, lastClarificationQuestions, newAnswers);
+                      }
+                    }}
                   />
                 ) : null}
 

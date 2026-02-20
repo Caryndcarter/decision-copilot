@@ -50,6 +50,33 @@ function buildRunContext(result: DecisionRunResult): string {
     }
   }
 
+  if (result.clarification_questions?.length) {
+    parts.push("\n## Follow-up questions (from the analysis)");
+    result.clarification_questions.forEach((q, i) => {
+      parts.push(`${i + 1}. [${q.lens}] ${q.question_text}`);
+    });
+  }
+
+  if (result.clarifications?.length) {
+    const last = result.clarifications[result.clarifications.length - 1];
+    if (last.answers?.length) {
+      parts.push("\n## User's answers to follow-up questions");
+      last.answers.forEach((a, i) => {
+        const q = result.clarification_questions?.find(
+          (cq) => cq.question_id === a.question_id && cq.lens === a.lens
+        );
+        const qText = q?.question_text ?? `(${a.lens})`;
+        const answer =
+          typeof a.answer === "boolean"
+            ? a.answer
+              ? "Yes"
+              : "No"
+            : String(a.answer);
+        parts.push(`${i + 1}. ${qText}: ${answer}`);
+      });
+    }
+  }
+
   return parts.join("\n");
 }
 
