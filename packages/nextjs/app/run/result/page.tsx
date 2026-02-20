@@ -67,8 +67,12 @@ function RunResultContent() {
   if (missing) {
     return (
       <main className="min-h-screen bg-slate-50">
+        <header className="sticky top-0 z-50 border-b border-slate-200 bg-white shadow-sm">
+          <div className="mx-auto max-w-3xl px-6 py-4">
+            <h1 className="text-xl font-semibold text-slate-900">Decision analysis</h1>
+          </div>
+        </header>
         <div className="mx-auto max-w-2xl px-6 py-12">
-          <h1 className="text-2xl font-semibold text-slate-900">Run result</h1>
           <p className="mt-4 text-slate-600">
             {loadError ?? "No run result in this session. Start from the intake form."}
           </p>
@@ -85,6 +89,11 @@ function RunResultContent() {
   if (result === null) {
     return (
       <main className="min-h-screen bg-slate-50">
+        <header className="sticky top-0 z-50 border-b border-slate-200 bg-white shadow-sm">
+          <div className="mx-auto max-w-3xl px-6 py-4">
+            <h1 className="text-xl font-semibold text-slate-900">Decision analysis</h1>
+          </div>
+        </header>
         <div className="mx-auto max-w-2xl px-6 py-12">
           <p className="text-slate-600">Loading…</p>
         </div>
@@ -94,9 +103,9 @@ function RunResultContent() {
 
   return (
     <main className="min-h-screen bg-slate-50">
-      <div className="mx-auto max-w-3xl px-6 py-12">
-        <header className="mb-8 flex items-center justify-between">
-          <h1 className="text-2xl font-semibold text-slate-900">Decision analysis</h1>
+      <header className="sticky top-0 z-50 border-b border-slate-200 bg-white shadow-sm">
+        <div className="mx-auto max-w-3xl px-6 py-4 flex items-center justify-between">
+          <h1 className="text-xl font-semibold text-slate-900">Decision analysis</h1>
           <div className="flex items-center gap-4">
             <Link href={`/run/chat${result.run_id ? `?run_id=${result.run_id}` : ""}`} className="text-sm text-slate-500 underline hover:text-slate-700">
               Chat view
@@ -105,8 +114,9 @@ function RunResultContent() {
               New intake
             </Link>
           </div>
-        </header>
-
+        </div>
+      </header>
+      <div className="mx-auto max-w-3xl px-6 py-8">
         <ResultContent result={result} />
 
         {result.clarification_needed &&

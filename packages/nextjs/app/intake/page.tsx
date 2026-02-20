@@ -139,14 +139,15 @@ export default function IntakePage() {
 
   return (
     <main className="min-h-screen bg-slate-50">
-      <div className="mx-auto max-w-2xl px-6 py-12">
-        <header className="mb-10">
-          <h1 className="text-2xl font-semibold text-slate-900">Decision intake</h1>
-          <p className="mt-1 text-slate-600">
+      <header className="sticky top-0 z-50 border-b border-slate-200 bg-white shadow-sm">
+        <div className="mx-auto max-w-2xl px-6 py-4">
+          <h1 className="text-xl font-semibold text-slate-900">Decision intake</h1>
+          <p className="mt-0.5 text-sm text-slate-600">
             Describe your decision and how you'd like to explore it.
           </p>
-        </header>
-
+        </div>
+      </header>
+      <div className="mx-auto max-w-2xl px-6 py-8">
         {/* Demo scenarios */}
         <div className="mb-8 rounded-lg border-2 border-dashed border-violet-300 bg-violet-50/50 p-4">
           <div className="flex items-center gap-2">
