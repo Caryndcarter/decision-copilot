@@ -1,7 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import type { DecisionRunResult, LensOutput } from "@/types/decision";
+import type {
+  DecisionRunResult,
+  LensOutput,
+  BlindSpot,
+  Tradeoff,
+  StakeholderImpact,
+} from "@/types/decision";
 
 function formatBriefDate(iso: string): string {
   try {
@@ -116,17 +122,235 @@ function EditableList({
   );
 }
 
+const SENTIMENT_OPTIONS: StakeholderImpact["sentiment"][] = ["positive", "negative", "neutral"];
+
+function EditableBlindSpots({
+  items,
+  onChange,
+  onSave,
+  onCancel,
+  saving,
+  error,
+}: {
+  items: BlindSpot[];
+  onChange: (items: BlindSpot[]) => void;
+  onSave: () => void;
+  onCancel: () => void;
+  saving: boolean;
+  error: string | null;
+}) {
+  return (
+    <div className="space-y-3">
+      {items.map((item, i) => (
+        <div key={i} className="flex gap-2 rounded border border-slate-200 bg-white p-2">
+          <input
+            type="text"
+            value={item.area}
+            onChange={(e) => {
+              const next = [...items];
+              next[i] = { ...next[i], area: e.target.value };
+              onChange(next);
+            }}
+            placeholder="Area"
+            className="flex-1 rounded border border-slate-300 px-2 py-1.5 text-sm"
+          />
+          <input
+            type="text"
+            value={item.description}
+            onChange={(e) => {
+              const next = [...items];
+              next[i] = { ...next[i], description: e.target.value };
+              onChange(next);
+            }}
+            placeholder="Description"
+            className="flex-1 rounded border border-slate-300 px-2 py-1.5 text-sm"
+          />
+          <button type="button" onClick={() => onChange(items.filter((_, j) => j !== i))} className="text-slate-400 hover:text-red-600" aria-label="Remove">
+            ×
+          </button>
+        </div>
+      ))}
+      <button type="button" onClick={() => onChange([...items, { area: "", description: "" }])} className="text-sm text-sky-600 hover:text-sky-700">
+        + Add blind spot
+      </button>
+      {error && <p className="text-sm text-red-600">{error}</p>}
+      <div className="flex gap-2 pt-2">
+        <button type="button" onClick={onSave} disabled={saving} className="rounded bg-sky-600 px-3 py-1.5 text-sm text-white hover:bg-sky-700 disabled:opacity-50">
+          {saving ? "Saving…" : "Save"}
+        </button>
+        <button type="button" onClick={onCancel} className="rounded border border-slate-300 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50">Cancel</button>
+      </div>
+    </div>
+  );
+}
+
+function EditableTradeoffs({
+  items,
+  onChange,
+  onSave,
+  onCancel,
+  saving,
+  error,
+}: {
+  items: Tradeoff[];
+  onChange: (items: Tradeoff[]) => void;
+  onSave: () => void;
+  onCancel: () => void;
+  saving: boolean;
+  error: string | null;
+}) {
+  return (
+    <div className="space-y-3">
+      {items.map((item, i) => (
+        <div key={i} className="space-y-2 rounded border border-slate-200 bg-white p-2">
+          <input
+            type="text"
+            value={item.option}
+            onChange={(e) => {
+              const next = [...items];
+              next[i] = { ...next[i], option: e.target.value };
+              onChange(next);
+            }}
+            placeholder="Option"
+            className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
+          />
+          <input
+            type="text"
+            value={item.upside}
+            onChange={(e) => {
+              const next = [...items];
+              next[i] = { ...next[i], upside: e.target.value };
+              onChange(next);
+            }}
+            placeholder="Upside"
+            className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
+          />
+          <input
+            type="text"
+            value={item.downside}
+            onChange={(e) => {
+              const next = [...items];
+              next[i] = { ...next[i], downside: e.target.value };
+              onChange(next);
+            }}
+            placeholder="Downside"
+            className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
+          />
+          <button type="button" onClick={() => onChange(items.filter((_, j) => j !== i))} className="text-slate-400 hover:text-red-600" aria-label="Remove">
+            × Remove
+          </button>
+        </div>
+      ))}
+      <button type="button" onClick={() => onChange([...items, { option: "", upside: "", downside: "" }])} className="text-sm text-sky-600 hover:text-sky-700">
+        + Add tradeoff
+      </button>
+      {error && <p className="text-sm text-red-600">{error}</p>}
+      <div className="flex gap-2 pt-2">
+        <button type="button" onClick={onSave} disabled={saving} className="rounded bg-sky-600 px-3 py-1.5 text-sm text-white hover:bg-sky-700 disabled:opacity-50">
+          {saving ? "Saving…" : "Save"}
+        </button>
+        <button type="button" onClick={onCancel} className="rounded border border-slate-300 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50">Cancel</button>
+      </div>
+    </div>
+  );
+}
+
+function EditableStakeholderImpacts({
+  items,
+  onChange,
+  onSave,
+  onCancel,
+  saving,
+  error,
+}: {
+  items: StakeholderImpact[];
+  onChange: (items: StakeholderImpact[]) => void;
+  onSave: () => void;
+  onCancel: () => void;
+  saving: boolean;
+  error: string | null;
+}) {
+  return (
+    <div className="space-y-3">
+      {items.map((item, i) => (
+        <div key={i} className="space-y-2 rounded border border-slate-200 bg-white p-2">
+          <input
+            type="text"
+            value={item.stakeholder}
+            onChange={(e) => {
+              const next = [...items];
+              next[i] = { ...next[i], stakeholder: e.target.value };
+              onChange(next);
+            }}
+            placeholder="Stakeholder"
+            className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
+          />
+          <select
+            value={item.sentiment}
+            onChange={(e) => {
+              const next = [...items];
+              next[i] = { ...next[i], sentiment: e.target.value as StakeholderImpact["sentiment"] };
+              onChange(next);
+            }}
+            className="rounded border border-slate-300 px-2 py-1.5 text-sm"
+          >
+            {SENTIMENT_OPTIONS.map((s) => (
+              <option key={s} value={s}>{s}</option>
+            ))}
+          </select>
+          <input
+            type="text"
+            value={item.impact}
+            onChange={(e) => {
+              const next = [...items];
+              next[i] = { ...next[i], impact: e.target.value };
+              onChange(next);
+            }}
+            placeholder="Impact"
+            className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
+          />
+          <button type="button" onClick={() => onChange(items.filter((_, j) => j !== i))} className="text-slate-400 hover:text-red-600" aria-label="Remove">
+            × Remove
+          </button>
+        </div>
+      ))}
+      <button type="button" onClick={() => onChange([...items, { stakeholder: "", impact: "", sentiment: "neutral" }])} className="text-sm text-sky-600 hover:text-sky-700">
+        + Add stakeholder impact
+      </button>
+      {error && <p className="text-sm text-red-600">{error}</p>}
+      <div className="flex gap-2 pt-2">
+        <button type="button" onClick={onSave} disabled={saving} className="rounded bg-sky-600 px-3 py-1.5 text-sm text-white hover:bg-sky-700 disabled:opacity-50">
+          {saving ? "Saving…" : "Save"}
+        </button>
+        <button type="button" onClick={onCancel} className="rounded border border-slate-300 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50">Cancel</button>
+      </div>
+    </div>
+  );
+}
+
 /** Section key for edit state, e.g. "risk.top_risks" */
 function sectionKey(lens: string, field: string) {
   return `${lens}.${field}`;
 }
 
-/** Build new lens_outputs with one list field updated */
+/** Build new lens_outputs with one list field updated (string[] or object[]) */
 function withUpdatedList(
   lensOutputs: LensOutput[],
   lensName: "risk" | "reversibility" | "people",
   field: string,
   value: string[]
+): LensOutput[] {
+  return lensOutputs.map((out) => {
+    if (out.lens !== lensName) return out;
+    return { ...out, [field]: value } as LensOutput;
+  });
+}
+
+function withUpdatedField(
+  lensOutputs: LensOutput[],
+  lensName: "risk" | "reversibility" | "people",
+  field: string,
+  value: BlindSpot[] | Tradeoff[] | StakeholderImpact[]
 ): LensOutput[] {
   return lensOutputs.map((out) => {
     if (out.lens !== lensName) return out;
@@ -144,6 +368,9 @@ export interface ResultContentProps {
 export function ResultContent({ result, className = "", onRunUpdate }: ResultContentProps) {
   const [editingSection, setEditingSection] = useState<string | null>(null);
   const [draftItems, setDraftItems] = useState<string[]>([]);
+  const [draftBlindSpots, setDraftBlindSpots] = useState<BlindSpot[]>([]);
+  const [draftTradeoffs, setDraftTradeoffs] = useState<Tradeoff[]>([]);
+  const [draftStakeholderImpacts, setDraftStakeholderImpacts] = useState<StakeholderImpact[]>([]);
   const [saving, setSaving] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
 
@@ -165,16 +392,11 @@ export function ResultContent({ result, className = "", onRunUpdate }: ResultCon
           ? "Lenses complete (brief pending)"
           : result.status;
 
-  async function saveLensListUpdate(
-    lensName: "risk" | "reversibility" | "people",
-    field: string,
-    items: string[]
-  ) {
+  async function saveLensUpdate(nextLensOutputs: LensOutput[]) {
     if (!onRunUpdate) return;
     setEditError(null);
     setSaving(true);
     try {
-      const nextLensOutputs = withUpdatedList(result.lens_outputs, lensName, field, items);
       const res = await fetch("/api/decision/run", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -194,6 +416,14 @@ export function ResultContent({ result, className = "", onRunUpdate }: ResultCon
     }
   }
 
+  async function saveLensListUpdate(
+    lensName: "risk" | "reversibility" | "people",
+    field: string,
+    items: string[]
+  ) {
+    await saveLensUpdate(withUpdatedList(result.lens_outputs, lensName, field, items));
+  }
+
   function startEditing(lens: string, field: string, current: string[]) {
     setEditingSection(sectionKey(lens, field));
     setDraftItems(current.length ? [...current] : [""]);
@@ -202,6 +432,24 @@ export function ResultContent({ result, className = "", onRunUpdate }: ResultCon
 
   function cancelEditing() {
     setEditingSection(null);
+    setEditError(null);
+  }
+
+  function startEditingBlindSpots(current: BlindSpot[]) {
+    setEditingSection(sectionKey("risk", "blind_spots"));
+    setDraftBlindSpots(current.length ? current.map((b) => ({ ...b })) : [{ area: "", description: "" }]);
+    setEditError(null);
+  }
+  function startEditingTradeoffs(current: Tradeoff[]) {
+    setEditingSection(sectionKey("risk", "tradeoffs"));
+    setDraftTradeoffs(current.length ? current.map((t) => ({ ...t })) : [{ option: "", upside: "", downside: "" }]);
+    setEditError(null);
+  }
+  function startEditingStakeholderImpacts(current: StakeholderImpact[]) {
+    setEditingSection(sectionKey("people", "stakeholder_impacts"));
+    setDraftStakeholderImpacts(
+      current.length ? current.map((s) => ({ ...s })) : [{ stakeholder: "", impact: "", sentiment: "neutral" }]
+    );
     setEditError(null);
   }
 
@@ -319,36 +567,80 @@ export function ResultContent({ result, className = "", onRunUpdate }: ResultCon
               </Section>
             </div>
           )}
-          {riskLens.blind_spots && riskLens.blind_spots.length > 0 && (
+          {(riskLens.blind_spots?.length || canEdit) && (
             <div className="rounded-lg border border-rose-200 bg-rose-50/60 p-4 shadow-sm">
               <Section title="Blind spots">
-                <ul className="space-y-3">
-                  {riskLens.blind_spots.map((b, i) => (
-                    <li key={i} className="border-l-2 border-amber-300 pl-3">
-                      <span className="font-medium text-slate-800">{b.area}:</span>{" "}
-                      <span className="text-slate-700">{b.description}</span>
-                    </li>
-                  ))}
-                </ul>
+                {editingSection === sectionKey("risk", "blind_spots") ? (
+                  <EditableBlindSpots
+                    items={draftBlindSpots}
+                    onChange={setDraftBlindSpots}
+                    onSave={() => saveLensUpdate(withUpdatedField(result.lens_outputs, "risk", "blind_spots", draftBlindSpots.filter((b) => b.area.trim() || b.description.trim())))}
+                    onCancel={cancelEditing}
+                    saving={saving}
+                    error={editError}
+                  />
+                ) : (
+                  <>
+                    {riskLens.blind_spots?.length ? (
+                      <ul className="space-y-3">
+                        {riskLens.blind_spots.map((b, i) => (
+                          <li key={i} className="border-l-2 border-amber-300 pl-3">
+                            <span className="font-medium text-slate-800">{b.area}:</span>{" "}
+                            <span className="text-slate-700">{b.description}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="text-slate-500 text-sm">No items. Edit to add.</p>
+                    )}
+                    {canEdit && (
+                      <button type="button" onClick={() => startEditingBlindSpots(riskLens.blind_spots ?? [])} className="mt-2 text-sm text-sky-600 hover:text-sky-700">
+                        Edit
+                      </button>
+                    )}
+                  </>
+                )}
               </Section>
             </div>
           )}
-          {riskLens.tradeoffs && riskLens.tradeoffs.length > 0 && (
+          {(riskLens.tradeoffs?.length || canEdit) && (
             <div className="rounded-lg border border-rose-200 bg-rose-50/60 p-4 shadow-sm">
               <Section title="Tradeoffs">
-                <div className="space-y-4">
-                  {riskLens.tradeoffs.map((t, i) => (
-                    <div key={i} className="rounded border border-slate-200 bg-slate-50/50 p-3">
-                      <p className="font-medium text-slate-800">{t.option}</p>
-                      <p className="mt-1 text-sm text-emerald-700">
-                        <span className="font-medium">Upside:</span> {t.upside}
-                      </p>
-                      <p className="mt-1 text-sm text-slate-600">
-                        <span className="font-medium">Downside:</span> {t.downside}
-                      </p>
-                    </div>
-                  ))}
-                </div>
+                {editingSection === sectionKey("risk", "tradeoffs") ? (
+                  <EditableTradeoffs
+                    items={draftTradeoffs}
+                    onChange={setDraftTradeoffs}
+                    onSave={() => saveLensUpdate(withUpdatedField(result.lens_outputs, "risk", "tradeoffs", draftTradeoffs.filter((t) => t.option.trim() || t.upside.trim() || t.downside.trim())))}
+                    onCancel={cancelEditing}
+                    saving={saving}
+                    error={editError}
+                  />
+                ) : (
+                  <>
+                    {riskLens.tradeoffs?.length ? (
+                      <div className="space-y-4">
+                        {riskLens.tradeoffs.map((t, i) => (
+                          <div key={i} className="rounded border border-slate-200 bg-slate-50/50 p-3">
+                            <p className="font-medium text-slate-800">{t.option}</p>
+                            <p className="mt-1 text-sm text-emerald-700">
+                              <span className="font-medium">Upside:</span> {t.upside}
+                            </p>
+                            <p className="mt-1 text-sm text-slate-600">
+                              <span className="font-medium">Downside:</span> {t.downside}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-slate-500 text-sm">No items. Edit to add.</p>
+                    )}
+                    {canEdit && (
+                      <button type="button" onClick={() => startEditingTradeoffs(riskLens.tradeoffs ?? [])} className="mt-2 text-sm text-sky-600 hover:text-sky-700">
+                        Edit
+                      </button>
+                    )}
+                  </>
+                )}
               </Section>
             </div>
           )}
@@ -481,29 +773,51 @@ export function ResultContent({ result, className = "", onRunUpdate }: ResultCon
       {/* People (violet tint) */}
       {peopleLens && (
         <div className="mt-6 space-y-4">
-          {peopleLens.stakeholder_impacts && peopleLens.stakeholder_impacts.length > 0 && (
+          {(peopleLens.stakeholder_impacts?.length || canEdit) && (
             <div className="rounded-lg border border-violet-200 bg-violet-50/80 p-4 shadow-sm">
               <Section title="Stakeholder impacts">
                 <p className="mb-3 text-sm text-slate-600">Who is affected by this decision and how.</p>
-                <ul className="space-y-3">
-                  {peopleLens.stakeholder_impacts.map((s, i) => (
-                    <li key={i} className="flex flex-col gap-1">
-                      <span className="font-medium text-slate-800">{s.stakeholder}</span>
-                      <span
-                        className={`inline-flex w-fit rounded-full px-2 py-0.5 text-xs font-medium ${
-                          s.sentiment === "positive"
-                            ? "bg-emerald-100 text-emerald-800"
-                            : s.sentiment === "negative"
-                              ? "bg-red-100 text-red-800"
-                              : "bg-slate-200 text-slate-700"
-                        }`}
-                      >
-                        {s.sentiment}
-                      </span>
-                      <span className="text-slate-700">{s.impact}</span>
-                    </li>
-                  ))}
-                </ul>
+                {editingSection === sectionKey("people", "stakeholder_impacts") ? (
+                  <EditableStakeholderImpacts
+                    items={draftStakeholderImpacts}
+                    onChange={setDraftStakeholderImpacts}
+                    onSave={() => saveLensUpdate(withUpdatedField(result.lens_outputs, "people", "stakeholder_impacts", draftStakeholderImpacts.filter((s) => s.stakeholder.trim() || s.impact.trim())))}
+                    onCancel={cancelEditing}
+                    saving={saving}
+                    error={editError}
+                  />
+                ) : (
+                  <>
+                    {peopleLens.stakeholder_impacts?.length ? (
+                      <ul className="space-y-3">
+                        {peopleLens.stakeholder_impacts.map((s, i) => (
+                          <li key={i} className="flex flex-col gap-1">
+                            <span className="font-medium text-slate-800">{s.stakeholder}</span>
+                            <span
+                              className={`inline-flex w-fit rounded-full px-2 py-0.5 text-xs font-medium ${
+                                s.sentiment === "positive"
+                                  ? "bg-emerald-100 text-emerald-800"
+                                  : s.sentiment === "negative"
+                                    ? "bg-red-100 text-red-800"
+                                    : "bg-slate-200 text-slate-700"
+                              }`}
+                            >
+                              {s.sentiment}
+                            </span>
+                            <span className="text-slate-700">{s.impact}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="text-slate-500 text-sm">No items. Edit to add.</p>
+                    )}
+                    {canEdit && (
+                      <button type="button" onClick={() => startEditingStakeholderImpacts(peopleLens.stakeholder_impacts ?? [])} className="mt-2 text-sm text-sky-600 hover:text-sky-700">
+                        Edit
+                      </button>
+                    )}
+                  </>
+                )}
               </Section>
             </div>
           )}
