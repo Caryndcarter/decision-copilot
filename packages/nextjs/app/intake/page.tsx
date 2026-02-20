@@ -129,7 +129,7 @@ export default function IntakePage() {
       if (typeof window !== "undefined") {
         sessionStorage.setItem(RUN_RESULT_KEY, JSON.stringify(data));
       }
-      router.push("/run/result");
+      router.push(data.run_id ? `/run/chat?run_id=${data.run_id}` : "/run/chat");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
