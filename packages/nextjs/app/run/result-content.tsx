@@ -10,6 +10,10 @@ import type {
   DecisionBrief,
 } from "@/types/decision";
 import { LensBoxEditor, type LensBoxEditorHandle } from "./lens-box-editor";
+import {
+  ClarificationAnswerEditor,
+  type ClarificationAnswerEditorHandle,
+} from "./clarification-answer-editor";
 
 function formatBriefDate(iso: string): string {
   try {
@@ -379,6 +383,9 @@ export function ResultContent({ result, className = "", onRunUpdate }: ResultCon
   const [briefDraft, setBriefDraft] = useState<DecisionBrief | null>(null);
   const keyConsiderationsRef = useRef<LensBoxEditorHandle>(null);
   const nextStepsRef = useRef<LensBoxEditorHandle>(null);
+  const titleRef = useRef<ClarificationAnswerEditorHandle>(null);
+  const summaryRef = useRef<ClarificationAnswerEditorHandle>(null);
+  const recommendationBodyRef = useRef<ClarificationAnswerEditorHandle>(null);
 
   const riskLens = result.lens_outputs?.find((o) => o.lens === "risk") as
     | (LensOutput & { top_risks?: string[] })
@@ -817,13 +824,16 @@ export function ResultContent({ result, className = "", onRunUpdate }: ResultCon
         <div className="mt-6 rounded-lg border border-sky-200 bg-sky-50 p-4 shadow-sm">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
             {canEdit && !isStubBrief && briefDraft ? (
-              <input
-                type="text"
-                value={briefDraft.title}
-                onChange={(e) => setBriefDraft((b) => (b ? { ...b, title: e.target.value } : null))}
-                className="w-full max-w-md rounded border border-sky-300 bg-white px-2 py-1 text-lg font-semibold text-slate-900"
-                placeholder="Brief title"
-              />
+              <div className="min-w-0 flex-1">
+                <ClarificationAnswerEditor
+                  ref={titleRef}
+                  editorKey="brief.title"
+                  value={briefDraft.title || "Decision brief"}
+                  onChange={(v) => setBriefDraft((b) => (b ? { ...b, title: v || "Decision brief" } : null))}
+                  variant="inline"
+                  className="text-lg font-semibold text-slate-900"
+                />
+              </div>
             ) : (
               <h2 className="text-lg font-semibold text-slate-900">
                 {result.decision_brief.title || "Decision brief"}
@@ -843,24 +853,37 @@ export function ResultContent({ result, className = "", onRunUpdate }: ResultCon
               </p>
             ) : canEdit && briefDraft ? (
               <>
-                <label className="block text-sm font-medium text-slate-600">Summary</label>
-                <textarea
-                  value={briefDraft.summary}
-                  onChange={(e) => setBriefDraft((b) => (b ? { ...b, summary: e.target.value } : null))}
-                  className="mt-1 w-full rounded border border-sky-300 bg-white px-2 py-1.5 text-slate-800"
-                  rows={3}
-                />
-                <label className="mt-3 block text-sm font-medium text-slate-600">Recommendation</label>
-                <textarea
-                  value={briefDraft.recommendation}
-                  onChange={(e) =>
-                    setBriefDraft((b) => (b ? { ...b, recommendation: e.target.value } : null))
-                  }
-                  className="mt-1 w-full rounded border border-sky-300 bg-white px-2 py-1.5 text-slate-800"
-                  rows={2}
-                />
                 <div className="mt-3">
-                  <label className="block text-sm font-medium text-slate-600">Key considerations</label>
+                  <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Summary</h2>
+                  <ClarificationAnswerEditor
+                    ref={summaryRef}
+                    editorKey="brief.summary"
+                    value={briefDraft.summary}
+                    onChange={(v) => setBriefDraft((b) => (b ? { ...b, summary: v } : null))}
+                    variant="inline"
+                    className="mt-2"
+                  />
+                </div>
+                <div className="mt-3">
+                  <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Recommendation</h2>
+                  <ClarificationAnswerEditor
+                    ref={recommendationBodyRef}
+                    editorKey="brief.recommendation_body"
+                    value={
+                      (briefDraft.recommendation ?? "").includes("\n")
+                        ? (briefDraft.recommendation ?? "").split("\n").slice(1).join("\n")
+                        : briefDraft.recommendation ?? ""
+                    }
+                    onChange={(body) =>
+                      setBriefDraft((b) => (b ? { ...b, recommendation: body } : null))
+                    }
+                    variant="inline"
+                    className="mt-2"
+                  />
+                </div>
+                <div className="mt-3">
+                  <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Key considerations</h2>
+                  <div className="mt-2">
                   <LensBoxEditor
                     ref={keyConsiderationsRef}
                     editorKey="brief.key_considerations"
@@ -869,9 +892,11 @@ export function ResultContent({ result, className = "", onRunUpdate }: ResultCon
                     editable={true}
                     hideSaveHint
                   />
+                  </div>
                 </div>
                 <div className="mt-3">
-                  <label className="block text-sm font-medium text-slate-600">Next steps</label>
+                  <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Next steps</h2>
+                  <div className="mt-2">
                   <LensBoxEditor
                     ref={nextStepsRef}
                     editorKey="brief.next_steps"
@@ -880,6 +905,7 @@ export function ResultContent({ result, className = "", onRunUpdate }: ResultCon
                     editable={true}
                     hideSaveHint
                   />
+                  </div>
                 </div>
                 <div className="mt-3 flex items-center gap-2">
                   <button
@@ -888,10 +914,17 @@ export function ResultContent({ result, className = "", onRunUpdate }: ResultCon
                       const keyConsiderations =
                         keyConsiderationsRef.current?.getItems() ?? briefDraft.key_considerations ?? [];
                       const nextSteps = nextStepsRef.current?.getItems() ?? briefDraft.next_steps ?? [];
+                      const title = titleRef.current?.getValue() ?? briefDraft.title;
+                      const summary = summaryRef.current?.getValue() ?? briefDraft.summary;
+                      const recommendation =
+                        recommendationBodyRef.current?.getValue() ??
+                        ((briefDraft.recommendation ?? "").includes("\n")
+                          ? (briefDraft.recommendation ?? "").split("\n").slice(1).join("\n")
+                          : briefDraft.recommendation ?? "");
                       saveBrief({
-                        title: briefDraft.title,
-                        summary: briefDraft.summary,
-                        recommendation: briefDraft.recommendation,
+                        title: title || "Decision brief",
+                        summary,
+                        recommendation,
                         key_considerations: keyConsiderations,
                         next_steps: nextSteps,
                       });
@@ -903,11 +936,19 @@ export function ResultContent({ result, className = "", onRunUpdate }: ResultCon
                   </button>
                   {briefError && <p className="text-sm text-red-600">{briefError}</p>}
                 </div>
+                <p className="mt-2 text-xs text-slate-500">
+                  Edit inline; changes save when you click away or press Save.
+                </p>
               </>
             ) : (
               <>
                 <p className="text-slate-800">{result.decision_brief.summary}</p>
-                <p className="mt-3 font-medium text-slate-800">{result.decision_brief.recommendation}</p>
+                <p className="mt-3 text-slate-800">
+                  {result.decision_brief.recommendation?.includes("\n")
+                    ? result.decision_brief.recommendation.split("\n").slice(1).join("\n") ||
+                      result.decision_brief.recommendation
+                    : result.decision_brief.recommendation}
+                </p>
                 {result.decision_brief.key_considerations?.length > 0 && (
                   <ul className="mt-2 list-inside list-disc text-slate-700">
                     {result.decision_brief.key_considerations.map((k, i) => (

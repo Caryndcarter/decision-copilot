@@ -12,10 +12,12 @@ body {
   box-sizing: border-box;
 }
 
-/* Tiptap/ProseMirror lens box editor: list styling and focus ring */
+/* Tiptap/ProseMirror: list styling and focus ring (min-height only on lens boxes to avoid gaps in inline brief fields) */
 .ProseMirror {
-  min-height: 5rem;
   outline: none;
+}
+.lens-box-editor .ProseMirror {
+  min-height: 5rem;
 }
 .ProseMirror:focus {
   outline: none;
@@ -28,8 +30,11 @@ body {
 .ProseMirror li {
   margin: 0.25rem 0;
 }
-.ProseMirror p {
+.lens-box-editor .ProseMirror p {
   margin: 0.15rem 0;
+}
+.ProseMirror p {
+  margin: 0;
 }
 .ProseMirror p.is-editor-empty:first-child::before {
   color: #94a3b8;

@@ -120,7 +120,7 @@ export const LensBoxEditor = forwardRef<LensBoxEditorHandle, LensBoxEditorProps>
   }
 
   return (
-    <div className={className}>
+    <div className={`lens-box-editor ${className}`}>
       <EditorContent editor={editor} />
       {editable && !hideSaveHint && (
         <div className="mt-2 flex items-center justify-between gap-2">

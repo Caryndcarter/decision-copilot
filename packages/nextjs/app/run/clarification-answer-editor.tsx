@@ -2,7 +2,7 @@
 
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
-import { useEffect } from "react";
+import { useEffect, useCallback, useImperativeHandle, forwardRef } from "react";
 
 function textToContent(text: string) {
   return {
@@ -16,7 +16,7 @@ function textToContent(text: string) {
   };
 }
 
-function contentToText(json: { content?: Array<Record<string, unknown>> }): string {
+export function contentToText(json: { content?: Array<Record<string, unknown>> }): string {
   const p = json.content?.find((n) => n.type === "paragraph");
   const pContent = p?.content as Array<{ text?: string }> | undefined;
   if (!pContent) return "";
@@ -30,14 +30,21 @@ export interface ClarificationAnswerEditorProps {
   className?: string;
   /** Unique key so editor is recreated when switching question */
   editorKey: string;
+  /** Optional: lighter inline styling (e.g. for brief summary/recommendation) */
+  variant?: "default" | "inline";
 }
 
-export function ClarificationAnswerEditor({
-  value,
-  onChange,
-  className = "",
-  editorKey,
-}: ClarificationAnswerEditorProps) {
+export interface ClarificationAnswerEditorHandle {
+  getValue(): string;
+}
+
+export const ClarificationAnswerEditor = forwardRef<
+  ClarificationAnswerEditorHandle,
+  ClarificationAnswerEditorProps
+>(function ClarificationAnswerEditor(
+  { value, onChange, className = "", editorKey, variant = "default" },
+  ref
+) {
   const editor = useEditor({
     key: editorKey,
     extensions: [StarterKit.configure({ bulletList: false, orderedList: false, listItem: false })],
@@ -46,10 +53,16 @@ export function ClarificationAnswerEditor({
     immediatelyRender: false,
     editorProps: {
       attributes: {
-        class: "min-h-[2.5rem] w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500",
+        class:
+          variant === "inline"
+            ? "min-h-[1.5rem] w-full rounded border-0 bg-transparent px-0 py-1 text-slate-800 focus:outline-none focus:ring-0"
+            : "min-h-[2.5rem] w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500",
       },
     },
   });
+
+  const getValue = useCallback(() => (editor ? contentToText(editor.getJSON()) : ""), [editor]);
+  useImperativeHandle(ref, () => ({ getValue }), [getValue]);
 
   useEffect(() => {
     if (!editor) return;
@@ -65,4 +78,4 @@ export function ClarificationAnswerEditor({
       <EditorContent editor={editor} />
     </div>
   );
-}
+});
