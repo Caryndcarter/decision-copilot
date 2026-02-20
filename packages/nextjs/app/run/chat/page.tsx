@@ -10,6 +10,31 @@ import { ResultChat } from "../result-chat";
 import { ClarificationForm } from "../clarification-form";
 
 const RUN_RESULT_KEY = "decisionRunResult";
+const CLARIFICATION_SNAPSHOT_KEY = "decisionRunClarificationSnapshot";
+
+function getStoredSnapshot(run_id: string): { questions: LensQuestion[]; answers: ClarificationAnswersMap } | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = sessionStorage.getItem(CLARIFICATION_SNAPSHOT_KEY);
+    if (!raw) return null;
+    const map = JSON.parse(raw) as Record<string, { questions: LensQuestion[]; answers: ClarificationAnswersMap }>;
+    return map[run_id] ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function setStoredSnapshot(run_id: string, questions: LensQuestion[], answers: ClarificationAnswersMap) {
+  if (typeof window === "undefined") return;
+  try {
+    const raw = sessionStorage.getItem(CLARIFICATION_SNAPSHOT_KEY);
+    const map = raw ? (JSON.parse(raw) as Record<string, { questions: LensQuestion[]; answers: ClarificationAnswersMap }>) : {};
+    map[run_id] = { questions, answers };
+    sessionStorage.setItem(CLARIFICATION_SNAPSHOT_KEY, JSON.stringify(map));
+  } catch {
+    // ignore
+  }
+}
 
 function questionKey(q: { lens: string; question_id: string }) {
   return `${q.lens}-${q.question_id}`;
@@ -103,17 +128,25 @@ export function ChatContent() {
     }
   }, [searchParams]);
 
-  // Persist questions (and answers after submit) for the right panel; clear only when switching to a different run that has none
+  // Persist questions (and answers after submit) for the right panel; restore from sessionStorage when returning to chat (e.g. from single-page result)
   useEffect(() => {
     if (!result) return;
     const hasQuestions = result.clarification_questions && result.clarification_questions.length > 0;
     if (hasQuestions) {
       setLastClarificationQuestions(result.clarification_questions);
       prevRunIdRef.current = result.run_id;
-    } else if (prevRunIdRef.current !== result.run_id) {
-      setLastClarificationQuestions(null);
-      setLastClarificationAnswers(null);
-      prevRunIdRef.current = result.run_id;
+    } else {
+      if (prevRunIdRef.current !== result.run_id) {
+        prevRunIdRef.current = result.run_id;
+      }
+      const snapshot = getStoredSnapshot(result.run_id);
+      if (snapshot?.questions?.length && snapshot.answers && Object.keys(snapshot.answers).length > 0) {
+        setLastClarificationQuestions(snapshot.questions);
+        setLastClarificationAnswers(snapshot.answers);
+      } else {
+        setLastClarificationQuestions(null);
+        setLastClarificationAnswers(null);
+      }
     }
   }, [result]);
 
@@ -125,6 +158,7 @@ export function ChatContent() {
     if (submitted) {
       setLastClarificationQuestions(submitted.questions);
       setLastClarificationAnswers(submitted.answers);
+      setStoredSnapshot(updated.run_id, submitted.questions, submitted.answers);
     }
     if (typeof window !== "undefined") {
       sessionStorage.setItem(RUN_RESULT_KEY, JSON.stringify(updated));
