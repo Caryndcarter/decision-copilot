@@ -174,4 +174,8 @@ export interface DecisionRunResult {
   /** May be empty if using "gap check first" architecture */
   lens_outputs: LensOutput[];
   decision_brief?: DecisionBrief;
+  /** First-draft analysis by lens (before any clarification); always set on intake */
+  lens_outputs_first_draft?: LensOutput[];
+  /** First-draft decision brief, if any (before any clarification) */
+  decision_brief_first_draft?: DecisionBrief;
 }

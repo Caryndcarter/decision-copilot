@@ -191,6 +191,8 @@ async function handleIntake(req: InitialRunRequest): Promise<NextResponse> {
     clarifications: [],
     lens_outputs,
     decision_brief,
+    lens_outputs_first_draft: lens_outputs,
+    decision_brief_first_draft: decision_brief,
   };
 
   await insertRun(result);
@@ -225,11 +227,19 @@ async function handleClarification(req: ClarificationRequest): Promise<NextRespo
     ...req.clarification,
   };
 
+  // Preserve first-draft analysis if not already set (e.g. run created before we stored it)
+  if (!existingRun.lens_outputs_first_draft?.length && existingRun.lens_outputs?.length) {
+    existingRun.lens_outputs_first_draft = existingRun.lens_outputs;
+    if (existingRun.decision_brief) {
+      existingRun.decision_brief_first_draft = existingRun.decision_brief;
+    }
+  }
+
   // Update run with clarification
   existingRun.clarifications.push(clarification);
   existingRun.status = "processing_clarification";
 
-  // Run full analysis with clarification
+  // Run full analysis with clarification (refined version)
   const lens_outputs = await runLenses(existingRun.intake, existingRun.clarifications);
   const decision_brief = await synthesizeBrief(
     existingRun.intake,
