@@ -8,6 +8,7 @@ import type {
   Tradeoff,
   StakeholderImpact,
 } from "@/types/decision";
+import { LensBoxEditor } from "./lens-box-editor";
 
 function formatBriefDate(iso: string): string {
   try {
@@ -367,7 +368,6 @@ export interface ResultContentProps {
 
 export function ResultContent({ result, className = "", onRunUpdate }: ResultContentProps) {
   const [editingSection, setEditingSection] = useState<string | null>(null);
-  const [draftItems, setDraftItems] = useState<string[]>([]);
   const [draftBlindSpots, setDraftBlindSpots] = useState<BlindSpot[]>([]);
   const [draftTradeoffs, setDraftTradeoffs] = useState<Tradeoff[]>([]);
   const [draftStakeholderImpacts, setDraftStakeholderImpacts] = useState<StakeholderImpact[]>([]);
@@ -422,12 +422,6 @@ export function ResultContent({ result, className = "", onRunUpdate }: ResultCon
     items: string[]
   ) {
     await saveLensUpdate(withUpdatedList(result.lens_outputs, lensName, field, items));
-  }
-
-  function startEditing(lens: string, field: string, current: string[]) {
-    setEditingSection(sectionKey(lens, field));
-    setDraftItems(current.length ? [...current] : [""]);
-    setEditError(null);
   }
 
   function cancelEditing() {
@@ -496,36 +490,21 @@ export function ResultContent({ result, className = "", onRunUpdate }: ResultCon
           {(riskLens.top_risks?.length || canEdit) && (
             <div className="rounded-lg border border-rose-200 bg-rose-50/60 p-4 shadow-sm">
               <Section title="Top risks">
-                {editingSection === sectionKey("risk", "top_risks") ? (
-                  <EditableList
-                    items={draftItems}
-                    onChange={setDraftItems}
-                    onSave={() => saveLensListUpdate("risk", "top_risks", draftItems.filter(Boolean))}
-                    onCancel={cancelEditing}
-                    saving={saving}
-                    error={editError}
+                {canEdit ? (
+                  <LensBoxEditor
+                    editorKey={sectionKey("risk", "top_risks")}
+                    items={riskLens.top_risks ?? []}
+                    onSave={(items) => saveLensListUpdate("risk", "top_risks", items)}
+                    editable={true}
                   />
+                ) : riskLens.top_risks?.length ? (
+                  <ul className="list-inside list-disc space-y-1.5 text-slate-700">
+                    {riskLens.top_risks.map((r, i) => (
+                      <li key={i}>{r}</li>
+                    ))}
+                  </ul>
                 ) : (
-                  <>
-                    {riskLens.top_risks?.length ? (
-                      <ul className="list-inside list-disc space-y-1.5 text-slate-700">
-                        {riskLens.top_risks.map((r, i) => (
-                          <li key={i}>{r}</li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <p className="text-slate-500 text-sm">No items. Edit to add your own.</p>
-                    )}
-                    {canEdit && (
-                      <button
-                        type="button"
-                        onClick={() => startEditing("risk", "top_risks", riskLens.top_risks ?? [])}
-                        className="mt-2 text-sm text-sky-600 hover:text-sky-700"
-                      >
-                        Edit
-                      </button>
-                    )}
-                  </>
+                  <p className="text-slate-500 text-sm">No items.</p>
                 )}
               </Section>
             </div>
@@ -533,36 +512,21 @@ export function ResultContent({ result, className = "", onRunUpdate }: ResultCon
           {(riskLens.assumptions_detected?.length || canEdit) && (
             <div className="rounded-lg border border-rose-200 bg-rose-50/60 p-4 shadow-sm">
               <Section title="Assumptions detected">
-                {editingSection === sectionKey("risk", "assumptions_detected") ? (
-                  <EditableList
-                    items={draftItems}
-                    onChange={setDraftItems}
-                    onSave={() => saveLensListUpdate("risk", "assumptions_detected", draftItems.filter(Boolean))}
-                    onCancel={cancelEditing}
-                    saving={saving}
-                    error={editError}
+                {canEdit ? (
+                  <LensBoxEditor
+                    editorKey={sectionKey("risk", "assumptions_detected")}
+                    items={riskLens.assumptions_detected ?? []}
+                    onSave={(items) => saveLensListUpdate("risk", "assumptions_detected", items)}
+                    editable={true}
                   />
+                ) : riskLens.assumptions_detected?.length ? (
+                  <ul className="list-inside list-disc space-y-1.5 text-slate-700">
+                    {riskLens.assumptions_detected.map((a, i) => (
+                      <li key={i}>{a}</li>
+                    ))}
+                  </ul>
                 ) : (
-                  <>
-                    {riskLens.assumptions_detected?.length ? (
-                      <ul className="list-inside list-disc space-y-1.5 text-slate-700">
-                        {riskLens.assumptions_detected.map((a, i) => (
-                          <li key={i}>{a}</li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <p className="text-slate-500 text-sm">No items. Edit to add.</p>
-                    )}
-                    {canEdit && (
-                      <button
-                        type="button"
-                        onClick={() => startEditing("risk", "assumptions_detected", riskLens.assumptions_detected ?? [])}
-                        className="mt-2 text-sm text-sky-600 hover:text-sky-700"
-                      >
-                        Edit
-                      </button>
-                    )}
-                  </>
+                  <p className="text-slate-500 text-sm">No items.</p>
                 )}
               </Section>
             </div>
@@ -647,36 +611,21 @@ export function ResultContent({ result, className = "", onRunUpdate }: ResultCon
           {(riskLens.remaining_uncertainty?.length || canEdit) && (
             <div className="rounded-lg border border-rose-200 bg-rose-50/60 p-4 shadow-sm">
               <Section title="Remaining uncertainty">
-                {editingSection === sectionKey("risk", "remaining_uncertainty") ? (
-                  <EditableList
-                    items={draftItems}
-                    onChange={setDraftItems}
-                    onSave={() => saveLensListUpdate("risk", "remaining_uncertainty", draftItems.filter(Boolean))}
-                    onCancel={cancelEditing}
-                    saving={saving}
-                    error={editError}
+                {canEdit ? (
+                  <LensBoxEditor
+                    editorKey={sectionKey("risk", "remaining_uncertainty")}
+                    items={riskLens.remaining_uncertainty ?? []}
+                    onSave={(items) => saveLensListUpdate("risk", "remaining_uncertainty", items)}
+                    editable={true}
                   />
+                ) : riskLens.remaining_uncertainty?.length ? (
+                  <ul className="list-inside list-disc space-y-1.5 text-slate-700">
+                    {riskLens.remaining_uncertainty.map((u, i) => (
+                      <li key={i}>{u}</li>
+                    ))}
+                  </ul>
                 ) : (
-                  <>
-                    {riskLens.remaining_uncertainty?.length ? (
-                      <ul className="list-inside list-disc space-y-1.5 text-slate-700">
-                        {riskLens.remaining_uncertainty.map((u, i) => (
-                          <li key={i}>{u}</li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <p className="text-slate-500 text-sm">No items. Edit to add.</p>
-                    )}
-                    {canEdit && (
-                      <button
-                        type="button"
-                        onClick={() => startEditing("risk", "remaining_uncertainty", riskLens.remaining_uncertainty ?? [])}
-                        className="mt-2 text-sm text-sky-600 hover:text-sky-700"
-                      >
-                        Edit
-                      </button>
-                    )}
-                  </>
+                  <p className="text-slate-500 text-sm">No items.</p>
                 )}
               </Section>
             </div>
@@ -693,36 +642,21 @@ export function ResultContent({ result, className = "", onRunUpdate }: ResultCon
                 <p className="mb-2 text-sm text-slate-600">
                   Steps or commitments that would be hard or impossible to undo.
                 </p>
-                {editingSection === sectionKey("reversibility", "irreversible_steps") ? (
-                  <EditableList
-                    items={draftItems}
-                    onChange={setDraftItems}
-                    onSave={() => saveLensListUpdate("reversibility", "irreversible_steps", draftItems.filter(Boolean))}
-                    onCancel={cancelEditing}
-                    saving={saving}
-                    error={editError}
+                {canEdit ? (
+                  <LensBoxEditor
+                    editorKey={sectionKey("reversibility", "irreversible_steps")}
+                    items={reversibilityLens.irreversible_steps ?? []}
+                    onSave={(items) => saveLensListUpdate("reversibility", "irreversible_steps", items)}
+                    editable={true}
                   />
+                ) : reversibilityLens.irreversible_steps?.length ? (
+                  <ul className="list-inside list-disc space-y-1.5 text-slate-700">
+                    {reversibilityLens.irreversible_steps.map((s, i) => (
+                      <li key={i}>{s}</li>
+                    ))}
+                  </ul>
                 ) : (
-                  <>
-                    {reversibilityLens.irreversible_steps?.length ? (
-                      <ul className="list-inside list-disc space-y-1.5 text-slate-700">
-                        {reversibilityLens.irreversible_steps.map((s, i) => (
-                          <li key={i}>{s}</li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <p className="text-slate-500 text-sm">No items. Edit to add.</p>
-                    )}
-                    {canEdit && (
-                      <button
-                        type="button"
-                        onClick={() => startEditing("reversibility", "irreversible_steps", reversibilityLens.irreversible_steps ?? [])}
-                        className="mt-2 text-sm text-sky-600 hover:text-sky-700"
-                      >
-                        Edit
-                      </button>
-                    )}
-                  </>
+                  <p className="text-slate-500 text-sm">No items.</p>
                 )}
               </Section>
             </div>
@@ -733,36 +667,21 @@ export function ResultContent({ result, className = "", onRunUpdate }: ResultCon
                 <p className="mb-2 text-sm text-slate-600">
                   Low-commitment steps or experiments you could try with minimal downside.
                 </p>
-                {editingSection === sectionKey("reversibility", "safe_to_try_first") ? (
-                  <EditableList
-                    items={draftItems}
-                    onChange={setDraftItems}
-                    onSave={() => saveLensListUpdate("reversibility", "safe_to_try_first", draftItems.filter(Boolean))}
-                    onCancel={cancelEditing}
-                    saving={saving}
-                    error={editError}
+                {canEdit ? (
+                  <LensBoxEditor
+                    editorKey={sectionKey("reversibility", "safe_to_try_first")}
+                    items={reversibilityLens.safe_to_try_first ?? []}
+                    onSave={(items) => saveLensListUpdate("reversibility", "safe_to_try_first", items)}
+                    editable={true}
                   />
+                ) : reversibilityLens.safe_to_try_first?.length ? (
+                  <ul className="list-inside list-disc space-y-1.5 text-slate-700">
+                    {reversibilityLens.safe_to_try_first.map((s, i) => (
+                      <li key={i}>{s}</li>
+                    ))}
+                  </ul>
                 ) : (
-                  <>
-                    {reversibilityLens.safe_to_try_first?.length ? (
-                      <ul className="list-inside list-disc space-y-1.5 text-slate-700">
-                        {reversibilityLens.safe_to_try_first.map((s, i) => (
-                          <li key={i}>{s}</li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <p className="text-slate-500 text-sm">No items. Edit to add.</p>
-                    )}
-                    {canEdit && (
-                      <button
-                        type="button"
-                        onClick={() => startEditing("reversibility", "safe_to_try_first", reversibilityLens.safe_to_try_first ?? [])}
-                        className="mt-2 text-sm text-sky-600 hover:text-sky-700"
-                      >
-                        Edit
-                      </button>
-                    )}
-                  </>
+                  <p className="text-slate-500 text-sm">No items.</p>
                 )}
               </Section>
             </div>
@@ -827,36 +746,21 @@ export function ResultContent({ result, className = "", onRunUpdate }: ResultCon
                 <p className="mb-2 text-sm text-slate-600">
                   Risks to successful execution: adoption, resistance, capability gaps, coordination.
                 </p>
-                {editingSection === sectionKey("people", "execution_risks") ? (
-                  <EditableList
-                    items={draftItems}
-                    onChange={setDraftItems}
-                    onSave={() => saveLensListUpdate("people", "execution_risks", draftItems.filter(Boolean))}
-                    onCancel={cancelEditing}
-                    saving={saving}
-                    error={editError}
+                {canEdit ? (
+                  <LensBoxEditor
+                    editorKey={sectionKey("people", "execution_risks")}
+                    items={peopleLens.execution_risks ?? []}
+                    onSave={(items) => saveLensListUpdate("people", "execution_risks", items)}
+                    editable={true}
                   />
+                ) : peopleLens.execution_risks?.length ? (
+                  <ul className="list-inside list-disc space-y-1.5 text-slate-700">
+                    {peopleLens.execution_risks.map((r, i) => (
+                      <li key={i}>{r}</li>
+                    ))}
+                  </ul>
                 ) : (
-                  <>
-                    {peopleLens.execution_risks?.length ? (
-                      <ul className="list-inside list-disc space-y-1.5 text-slate-700">
-                        {peopleLens.execution_risks.map((r, i) => (
-                          <li key={i}>{r}</li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <p className="text-slate-500 text-sm">No items. Edit to add.</p>
-                    )}
-                    {canEdit && (
-                      <button
-                        type="button"
-                        onClick={() => startEditing("people", "execution_risks", peopleLens.execution_risks ?? [])}
-                        className="mt-2 text-sm text-sky-600 hover:text-sky-700"
-                      >
-                        Edit
-                      </button>
-                    )}
-                  </>
+                  <p className="text-slate-500 text-sm">No items.</p>
                 )}
               </Section>
             </div>

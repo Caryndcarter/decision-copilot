@@ -86,6 +86,8 @@ Create a `.env` at the repo root. Relevant variables:
 
 Other env (e.g. `PROJECT_KEY`, `PROJECT_ENV`, `Anthropic API Key`) may be used by other tooling or future features.
 
+**“Server selection timed out” / MongoDB unavailable:** If you use MongoDB Atlas, add your current IP (or `0.0.0.0/0` for testing) under **Network Access** in the Atlas UI. Otherwise the cluster will refuse the connection and the driver will time out.
+
 ### Other scripts
 
 - `npm run build` — Build all workspaces.
