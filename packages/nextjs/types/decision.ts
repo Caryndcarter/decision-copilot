@@ -178,4 +178,6 @@ export interface DecisionRunResult {
   lens_outputs_first_draft?: LensOutput[];
   /** First-draft decision brief, if any (before any clarification) */
   decision_brief_first_draft?: DecisionBrief;
+  /** Chat messages for "ask about this analysis" (persisted with run when loading by run_id) */
+  chat_messages?: { role: "user" | "assistant"; content: string }[];
 }

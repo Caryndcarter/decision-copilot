@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getRun } from "@/lib/db/runs";
+import { getRun, replaceRun } from "@/lib/db/runs";
 import { openai } from "@/llm";
 import type { DecisionRunResult } from "@/types/decision";
 
@@ -113,6 +113,13 @@ ${context}`;
     ];
 
     const response = await openai.run(chatMessages, { temperature: 0.5, maxTokens: 1024 });
+
+    const updatedMessages = [
+      ...(run.chat_messages ?? []),
+      { role: "user" as const, content: newMessage.trim() },
+      { role: "assistant" as const, content: response.content },
+    ];
+    await replaceRun(run_id.trim(), { ...run, chat_messages: updatedMessages });
 
     return NextResponse.json({ content: response.content });
   } catch (error) {

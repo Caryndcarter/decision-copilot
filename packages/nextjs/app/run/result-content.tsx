@@ -502,6 +502,26 @@ export function ResultContent({ result, className = "", onRunUpdate }: ResultCon
     !result.decision_brief.key_considerations?.length &&
     !result.decision_brief.next_steps?.length;
 
+  function persistBrief() {
+    if (!briefDraft || !result.decision_brief) return;
+    const title = titleRef.current?.getValue() ?? briefDraft.title;
+    const summary = summaryRef.current?.getValue() ?? briefDraft.summary;
+    const recommendation =
+      recommendationBodyRef.current?.getValue() ??
+      ((briefDraft.recommendation ?? "").includes("\n")
+        ? (briefDraft.recommendation ?? "").split("\n").slice(1).join("\n")
+        : briefDraft.recommendation ?? "");
+    const keyConsiderations = keyConsiderationsRef.current?.getItems() ?? briefDraft.key_considerations ?? [];
+    const nextSteps = nextStepsRef.current?.getItems() ?? briefDraft.next_steps ?? [];
+    saveBrief({
+      title: title || "Decision brief",
+      summary,
+      recommendation,
+      key_considerations: keyConsiderations,
+      next_steps: nextSteps,
+    });
+  }
+
   return (
     <div className={className}>
       {/* Context */}
@@ -547,6 +567,7 @@ export function ResultContent({ result, className = "", onRunUpdate }: ResultCon
                     items={riskLens.top_risks ?? []}
                     onSave={(items) => saveLensListUpdate("risk", "top_risks", items)}
                     editable={true}
+                    hideSaveHint
                   />
                 ) : riskLens.top_risks?.length ? (
                   <ul className="list-inside list-disc space-y-1.5 text-slate-700">
@@ -569,6 +590,7 @@ export function ResultContent({ result, className = "", onRunUpdate }: ResultCon
                     items={riskLens.assumptions_detected ?? []}
                     onSave={(items) => saveLensListUpdate("risk", "assumptions_detected", items)}
                     editable={true}
+                    hideSaveHint
                   />
                 ) : riskLens.assumptions_detected?.length ? (
                   <ul className="list-inside list-disc space-y-1.5 text-slate-700">
@@ -668,6 +690,7 @@ export function ResultContent({ result, className = "", onRunUpdate }: ResultCon
                     items={riskLens.remaining_uncertainty ?? []}
                     onSave={(items) => saveLensListUpdate("risk", "remaining_uncertainty", items)}
                     editable={true}
+                    hideSaveHint
                   />
                 ) : riskLens.remaining_uncertainty?.length ? (
                   <ul className="list-inside list-disc space-y-1.5 text-slate-700">
@@ -699,6 +722,7 @@ export function ResultContent({ result, className = "", onRunUpdate }: ResultCon
                     items={reversibilityLens.irreversible_steps ?? []}
                     onSave={(items) => saveLensListUpdate("reversibility", "irreversible_steps", items)}
                     editable={true}
+                    hideSaveHint
                   />
                 ) : reversibilityLens.irreversible_steps?.length ? (
                   <ul className="list-inside list-disc space-y-1.5 text-slate-700">
@@ -724,6 +748,7 @@ export function ResultContent({ result, className = "", onRunUpdate }: ResultCon
                     items={reversibilityLens.safe_to_try_first ?? []}
                     onSave={(items) => saveLensListUpdate("reversibility", "safe_to_try_first", items)}
                     editable={true}
+                    hideSaveHint
                   />
                 ) : reversibilityLens.safe_to_try_first?.length ? (
                   <ul className="list-inside list-disc space-y-1.5 text-slate-700">
@@ -803,6 +828,7 @@ export function ResultContent({ result, className = "", onRunUpdate }: ResultCon
                     items={peopleLens.execution_risks ?? []}
                     onSave={(items) => saveLensListUpdate("people", "execution_risks", items)}
                     editable={true}
+                    hideSaveHint
                   />
                 ) : peopleLens.execution_risks?.length ? (
                   <ul className="list-inside list-disc space-y-1.5 text-slate-700">
@@ -829,7 +855,10 @@ export function ResultContent({ result, className = "", onRunUpdate }: ResultCon
                   ref={titleRef}
                   editorKey="brief.title"
                   value={briefDraft.title || "Decision brief"}
-                  onChange={(v) => setBriefDraft((b) => (b ? { ...b, title: v || "Decision brief" } : null))}
+                  onChange={(v) => {
+                    setBriefDraft((b) => (b ? { ...b, title: v || "Decision brief" } : null));
+                    persistBrief();
+                  }}
                   variant="inline"
                   className="text-lg font-semibold text-slate-900"
                 />
@@ -859,7 +888,10 @@ export function ResultContent({ result, className = "", onRunUpdate }: ResultCon
                     ref={summaryRef}
                     editorKey="brief.summary"
                     value={briefDraft.summary}
-                    onChange={(v) => setBriefDraft((b) => (b ? { ...b, summary: v } : null))}
+                    onChange={(v) => {
+                      setBriefDraft((b) => (b ? { ...b, summary: v } : null));
+                      persistBrief();
+                    }}
                     variant="inline"
                     className="mt-2"
                   />
@@ -874,9 +906,10 @@ export function ResultContent({ result, className = "", onRunUpdate }: ResultCon
                         ? (briefDraft.recommendation ?? "").split("\n").slice(1).join("\n")
                         : briefDraft.recommendation ?? ""
                     }
-                    onChange={(body) =>
-                      setBriefDraft((b) => (b ? { ...b, recommendation: body } : null))
-                    }
+                    onChange={(body) => {
+                      setBriefDraft((b) => (b ? { ...b, recommendation: body } : null));
+                      persistBrief();
+                    }}
                     variant="inline"
                     className="mt-2"
                   />
@@ -888,7 +921,10 @@ export function ResultContent({ result, className = "", onRunUpdate }: ResultCon
                     ref={keyConsiderationsRef}
                     editorKey="brief.key_considerations"
                     items={briefDraft.key_considerations ?? []}
-                    onSave={(items) => setBriefDraft((b) => (b ? { ...b, key_considerations: items } : null))}
+                    onSave={(items) => {
+                      setBriefDraft((b) => (b ? { ...b, key_considerations: items } : null));
+                      persistBrief();
+                    }}
                     editable={true}
                     hideSaveHint
                   />
@@ -901,44 +937,16 @@ export function ResultContent({ result, className = "", onRunUpdate }: ResultCon
                     ref={nextStepsRef}
                     editorKey="brief.next_steps"
                     items={briefDraft.next_steps ?? []}
-                    onSave={(items) => setBriefDraft((b) => (b ? { ...b, next_steps: items } : null))}
+                    onSave={(items) => {
+                      setBriefDraft((b) => (b ? { ...b, next_steps: items } : null));
+                      persistBrief();
+                    }}
                     editable={true}
                     hideSaveHint
                   />
                   </div>
                 </div>
-                <div className="mt-2 flex items-center justify-between gap-2">
-                  <p className="text-xs text-slate-500">
-                    Edit inline; changes save when you click away or press Save.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const keyConsiderations =
-                        keyConsiderationsRef.current?.getItems() ?? briefDraft.key_considerations ?? [];
-                      const nextSteps = nextStepsRef.current?.getItems() ?? briefDraft.next_steps ?? [];
-                      const title = titleRef.current?.getValue() ?? briefDraft.title;
-                      const summary = summaryRef.current?.getValue() ?? briefDraft.summary;
-                      const recommendation =
-                        recommendationBodyRef.current?.getValue() ??
-                        ((briefDraft.recommendation ?? "").includes("\n")
-                          ? (briefDraft.recommendation ?? "").split("\n").slice(1).join("\n")
-                          : briefDraft.recommendation ?? "");
-                      saveBrief({
-                        title: title || "Decision brief",
-                        summary,
-                        recommendation,
-                        key_considerations: keyConsiderations,
-                        next_steps: nextSteps,
-                      });
-                    }}
-                    disabled={briefSaving}
-                    className="rounded bg-sky-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-sky-700 disabled:opacity-50"
-                  >
-                    {briefSaving ? "Saving…" : "Save"}
-                  </button>
-                </div>
-                {briefError && <p className="mt-1 text-sm text-red-600">{briefError}</p>}
+                {briefError && <p className="mt-2 text-sm text-red-600">{briefError}</p>}
               </>
             ) : (
               <>

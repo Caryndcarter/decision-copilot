@@ -7,19 +7,63 @@ export interface ChatMessage {
   content: string;
 }
 
+const CHAT_STORAGE_PREFIX = "decisionRunChat_";
+
+function getStoredChat(runId: string): ChatMessage[] | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = sessionStorage.getItem(CHAT_STORAGE_PREFIX + runId);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as ChatMessage[];
+    return Array.isArray(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function setStoredChat(runId: string, messages: ChatMessage[]) {
+  if (typeof window === "undefined") return;
+  try {
+    sessionStorage.setItem(CHAT_STORAGE_PREFIX + runId, JSON.stringify(messages));
+  } catch {
+    // ignore
+  }
+}
+
 export interface ResultChatProps {
   runId: string;
   className?: string;
   /** When true, hide the "Ask about this analysis" header (e.g. inside a unified section) */
   hideHeader?: boolean;
+  /** Initial messages when run was loaded by run_id (from API); sessionStorage overrides when present */
+  initialMessages?: ChatMessage[];
 }
 
-export function ResultChat({ runId, className = "", hideHeader = false }: ResultChatProps) {
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+export function ResultChat({ runId, className = "", hideHeader = false, initialMessages }: ResultChatProps) {
+  const [messages, setMessages] = useState<ChatMessage[]>(() => {
+    const stored = getStoredChat(runId);
+    if (stored?.length) return stored;
+    if (initialMessages?.length) return initialMessages;
+    return [];
+  });
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const stored = getStoredChat(runId);
+    if (stored?.length) {
+      setMessages(stored);
+      return;
+    }
+    if (initialMessages?.length) setMessages(initialMessages);
+    else setMessages([]);
+  }, [runId, initialMessages]);
+
+  useEffect(() => {
+    setStoredChat(runId, messages);
+  }, [runId, messages]);
 
   useEffect(() => {
     const el = messagesContainerRef.current;

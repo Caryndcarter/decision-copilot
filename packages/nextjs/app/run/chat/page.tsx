@@ -377,7 +377,7 @@ export function ChatContent() {
                 ) : null}
 
                 <div className={hasPendingQuestions || hasAnsweredSnapshot ? "border-t border-slate-200 pt-4" : ""}>
-                  <ResultChat runId={result.run_id} hideHeader />
+                  <ResultChat runId={result.run_id} hideHeader initialMessages={result.chat_messages} />
                 </div>
               </div>
             </div>
