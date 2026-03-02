@@ -33,6 +33,21 @@ export async function getRun(run_id: string): Promise<DecisionRunResult | null> 
   return doc as DecisionRunResult | null;
 }
 
+/** List all runs for a decision (multiple postures). Order: most recent first (by run_id for in-memory; by createdAt for MongoDB). */
+export async function getRunsByDecisionId(decision_id: string): Promise<DecisionRunResult[]> {
+  const connected = await ensureConnection();
+  if (!connected) {
+    const list = Array.from(memoryStore.values()).filter((r) => r.decision_id === decision_id);
+    return list;
+  }
+  const docs = await database
+    .getCollection(COLLECTION)
+    .find({ decision_id })
+    .sort({ createdAt: -1 })
+    .toArray();
+  return docs as DecisionRunResult[];
+}
+
 export async function insertRun(result: DecisionRunResult): Promise<void> {
   const connected = await ensureConnection();
   if (!connected) {

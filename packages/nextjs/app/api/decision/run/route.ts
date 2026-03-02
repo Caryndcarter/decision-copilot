@@ -14,7 +14,7 @@ import { runRiskLens } from "@/lenses/risk";
 import { runReversibilityLens } from "@/lenses/reversibility";
 import { runPeopleLens } from "@/lenses/people";
 import { runBriefSynthesis } from "@/lenses/brief";
-import { getRun, insertRun, replaceRun } from "@/lib/db/runs";
+import { getRun, getRunsByDecisionId, insertRun, replaceRun } from "@/lib/db/runs";
 
 // ============================================
 // Request Types
@@ -44,11 +44,19 @@ interface UpdateBriefRequest {
   decision_brief: Partial<DecisionBrief>;
 }
 
+interface RerunPostureRequest {
+  type: "rerun_posture";
+  run_id: string;
+  posture: Posture;
+  leaning_direction?: string;
+}
+
 type RunRequest =
   | InitialRunRequest
   | ClarificationRequest
   | UpdateLensOutputsRequest
-  | UpdateBriefRequest;
+  | UpdateBriefRequest
+  | RerunPostureRequest;
 
 // ============================================
 // Validation
@@ -129,18 +137,23 @@ function isStubBrief(brief: DecisionBrief): boolean {
 // Route Handlers
 // ============================================
 
-/** GET /api/decision/run?run_id=xxx — fetch a previous run by ID (e.g. for loading in result page) */
+/** GET /api/decision/run?run_id=xxx — fetch one run. GET /api/decision/run?decision_id=xxx — list runs for that decision (for posture dropdown). */
 export async function GET(request: NextRequest): Promise<NextResponse> {
   const { searchParams } = new URL(request.url);
   const run_id = searchParams.get("run_id");
-  if (!run_id?.trim()) {
-    return NextResponse.json({ error: "run_id query parameter is required" }, { status: 400 });
+  const decision_id = searchParams.get("decision_id");
+  if (run_id?.trim()) {
+    const run = await getRun(run_id.trim());
+    if (!run) {
+      return NextResponse.json({ error: "Run not found" }, { status: 404 });
+    }
+    return NextResponse.json(run);
   }
-  const run = await getRun(run_id.trim());
-  if (!run) {
-    return NextResponse.json({ error: "Run not found" }, { status: 404 });
+  if (decision_id?.trim()) {
+    const runs = await getRunsByDecisionId(decision_id.trim());
+    return NextResponse.json({ runs });
   }
-  return NextResponse.json(run);
+  return NextResponse.json({ error: "run_id or decision_id query parameter is required" }, { status: 400 });
 }
 
 export async function POST(request: NextRequest) {
@@ -155,11 +168,13 @@ export async function POST(request: NextRequest) {
       return handleUpdateLensOutputs(body);
     } else if (body.type === "update_brief") {
       return handleUpdateBrief(body);
+    } else if (body.type === "rerun_posture") {
+      return handleRerunPosture(body);
     } else {
       return NextResponse.json(
         {
           error:
-            "Invalid request type. Must be 'intake', 'clarification', 'update_lens_outputs', or 'update_brief'",
+            "Invalid request type. Must be 'intake', 'clarification', 'update_lens_outputs', 'update_brief', or 'rerun_posture'",
         },
         { status: 400 }
       );
@@ -332,4 +347,61 @@ async function handleUpdateBrief(req: UpdateBriefRequest): Promise<NextResponse>
   await replaceRun(req.run_id.trim(), existingRun);
 
   return NextResponse.json(existingRun);
+}
+
+async function handleRerunPosture(req: RerunPostureRequest): Promise<NextResponse> {
+  if (!req.run_id?.trim()) {
+    return NextResponse.json({ error: "run_id is required" }, { status: 400 });
+  }
+  if (!isValidPosture(req.posture)) {
+    return NextResponse.json(
+      { error: "posture must be one of: explore, pressure_test, surface_risks, generate_alternatives" },
+      { status: 400 }
+    );
+  }
+  if (req.posture === "pressure_test" && !req.leaning_direction?.trim()) {
+    return NextResponse.json({ error: "leaning_direction is required when posture is pressure_test" }, { status: 400 });
+  }
+
+  const sourceRun = await getRun(req.run_id.trim());
+  if (!sourceRun) {
+    return NextResponse.json({ error: "Run not found" }, { status: 404 });
+  }
+
+  const newRunId = randomUUID();
+  const decision_id = sourceRun.decision_id;
+
+  const newIntake: DecisionIntake = {
+    ...sourceRun.intake,
+    posture: req.posture,
+    ...(req.posture === "pressure_test" && { leaning_direction: req.leaning_direction!.trim() }),
+    ...(req.posture !== "pressure_test" && { leaning_direction: undefined }),
+  } as DecisionIntake;
+
+  const clarifications: Clarification[] = sourceRun.clarifications.map((c) => ({
+    ...c,
+    run_id: newRunId,
+    decision_id,
+  }));
+
+  const lens_outputs = await runLenses(newIntake, clarifications);
+  const decision_brief = await synthesizeBrief(newIntake, lens_outputs, clarifications);
+  const status: DecisionRunStatus = isStubBrief(decision_brief) ? "pending_brief" : "complete";
+
+  const result: DecisionRunResult = {
+    decision_id,
+    run_id: newRunId,
+    status,
+    intake: newIntake,
+    clarification_questions: [],
+    clarification_needed: false,
+    clarifications,
+    lens_outputs,
+    decision_brief,
+    lens_outputs_first_draft: lens_outputs,
+    decision_brief_first_draft: decision_brief,
+  };
+
+  await insertRun(result);
+  return NextResponse.json(result);
 }
