@@ -65,15 +65,19 @@ function formatAnswerDisplay(q: LensQuestion, value: string | number | boolean |
   return String(value);
 }
 
+type ClarificationSection = { postureLabel: string; keys: string[] };
+
 /** Clarification answers: always inline editable (Tiptap for short_text, inputs for others). Saves on change/blur via onSave (parent persists to state + sessionStorage). */
 function AnsweredQuestionsSidebar({
   questions,
   answers,
+  sections = [],
   embedded = false,
   onSave,
 }: {
   questions: LensQuestion[];
   answers: ClarificationAnswersMap;
+  sections?: ClarificationSection[];
   embedded?: boolean;
   onSave?: (answers: ClarificationAnswersMap) => void;
 }) {
@@ -89,17 +93,9 @@ function AnsweredQuestionsSidebar({
   };
 
   const wrapperClass = embedded ? "pt-0" : "rounded-lg border border-slate-200 bg-white p-4 shadow-sm border-sky-200 bg-sky-50/50";
+  const questionsByKey = new Map(questions.map((q) => [questionKey(q), q]));
 
-  return (
-    <div className={wrapperClass}>
-      <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-        Follow-up questions
-      </h2>
-      <p className="mt-1 mb-4 text-sm text-slate-600">
-        The analysis on the left has been updated with your answers below. Edit inline; changes save when you click away.
-      </p>
-      <div className="space-y-4">
-        {questions.map((q) => (
+  const renderOne = (q: LensQuestion) => (
           <div key={questionKey(q)}>
             <label htmlFor={questionKey(q)} className="block text-sm font-medium text-slate-700">
               {q.question_text}
@@ -192,7 +188,33 @@ function AnsweredQuestionsSidebar({
               </div>
             )}
           </div>
-        ))}
+  );
+
+  return (
+    <div className={wrapperClass}>
+      <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+        Follow-up questions
+      </h2>
+      <p className="mt-1 mb-4 text-sm text-slate-600">
+        The analysis on the left has been updated with your answers below. Edit inline; changes save when you click away.
+      </p>
+      <div className="space-y-4">
+        {sections.length > 0
+          ? sections.map((section, idx) => {
+              const sectionQuestions = section.keys
+                .map((k) => questionsByKey.get(k))
+                .filter((q): q is LensQuestion => q != null);
+              if (sectionQuestions.length === 0) return null;
+              return (
+                <div key={`${section.postureLabel}-${idx}`} className={idx > 0 ? "mt-6 space-y-4" : "space-y-4"}>
+                  <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+                    {section.postureLabel}
+                  </h3>
+                  {sectionQuestions.map((q) => renderOne(q))}
+                </div>
+              );
+            })
+          : questions.map((q) => renderOne(q))}
       </div>
     </div>
   );
@@ -254,17 +276,18 @@ export function ChatContent() {
     }
   }, [searchParams]);
 
-  // When opening rerun modal, default to first posture that isn't current
+  // When opening rerun modal, default to first available (not-yet-run) posture
   useEffect(() => {
     if (showRerunModal && result) {
-      const other = POSTURES.find((p) => p !== result.intake.posture);
-      if (other) setRerunPosture(other);
+      const posturesRun = new Set((otherRuns.length > 0 ? otherRuns : [result]).map((r) => r.intake.posture));
+      const available = POSTURES.filter((p) => !posturesRun.has(p));
+      if (available[0]) setRerunPosture(available[0]);
       setRerunLeaningDirection("");
       setRerunError(null);
     }
-  }, [showRerunModal, result?.intake.posture]);
+  }, [showRerunModal, result?.intake.posture, otherRuns]);
 
-  // Fetch all runs for this decision (for posture switcher dropdown)
+  // Fetch all runs for this decision (for posture switcher dropdown). Refetch when run_id changes so new runs (e.g. after rerun) appear.
   useEffect(() => {
     if (!result?.decision_id) return;
     fetch(`/api/decision/run?decision_id=${encodeURIComponent(result.decision_id)}`)
@@ -274,7 +297,7 @@ export function ChatContent() {
         else setOtherRuns([]);
       })
       .catch(() => setOtherRuns([]));
-  }, [result?.decision_id]);
+  }, [result?.decision_id, result?.run_id]);
 
   // Persist questions (and answers after submit) for the right panel; restore from sessionStorage when returning to chat (e.g. from single-page result)
   useEffect(() => {
@@ -360,8 +383,13 @@ export function ChatContent() {
     lastClarificationAnswers &&
     Object.keys(lastClarificationAnswers).length > 0;
 
-  const runsForDropdown = otherRuns.length > 0 ? otherRuns : (result ? [result] : []);
+  // Always include current run in dropdown; merge in if missing (e.g. freshly created run not yet in list)
+  const runsList = otherRuns.length > 0 ? otherRuns : (result ? [result] : []);
+  const hasCurrent = result && runsList.some((r) => r.run_id === result.run_id);
+  const runsForDropdown = hasCurrent ? runsList : result ? [result, ...runsList] : runsList;
   const currentPostureLabel = postureLabel(result.intake.posture);
+  const posturesAlreadyRun = new Set(runsForDropdown.map((r) => r.intake.posture));
+  const availablePostures = POSTURES.filter((p) => !posturesAlreadyRun.has(p));
 
   async function handleRerunPosture() {
     if (rerunPosture === "pressure_test" && !rerunLeaningDirection.trim()) {
@@ -464,24 +492,28 @@ export function ChatContent() {
               Re-run the same analysis (same situation, constraints, and your clarification answers) with a different posture.
             </p>
             <div className="mt-4 space-y-4">
+              {availablePostures.length === 0 ? (
+                <p className="text-sm text-slate-600">You&apos;ve already run all postures for this decision. Use the dropdown above to switch between them.</p>
+              ) : (
               <div>
                 <label htmlFor="rerun-posture" className="block text-sm font-medium text-slate-700">
                   Posture
                 </label>
                 <select
                   id="rerun-posture"
-                  value={rerunPosture}
+                  value={availablePostures.includes(rerunPosture) ? rerunPosture : availablePostures[0]}
                   onChange={(e) => setRerunPosture(e.target.value as Posture)}
                   className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-800 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
                 >
-                  {POSTURES.filter((p) => p !== result.intake.posture).map((p) => (
+                  {availablePostures.map((p) => (
                     <option key={p} value={p}>
                       {postureLabel(p)}
                     </option>
                   ))}
                 </select>
               </div>
-              {rerunPosture === "pressure_test" && (
+              )}
+              {rerunPosture === "pressure_test" && availablePostures.length > 0 && (
                 <div>
                   <label htmlFor="rerun-leaning" className="block text-sm font-medium text-slate-700">
                     Leaning toward
@@ -509,7 +541,7 @@ export function ChatContent() {
               <button
                 type="button"
                 onClick={handleRerunPosture}
-                disabled={rerunSubmitting || (rerunPosture === "pressure_test" && !rerunLeaningDirection.trim())}
+                disabled={rerunSubmitting || availablePostures.length === 0 || (rerunPosture === "pressure_test" && !rerunLeaningDirection.trim())}
                 className="rounded-md bg-sky-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-sky-700 disabled:opacity-50"
               >
                 {rerunSubmitting ? "Running…" : "Run analysis"}
@@ -553,6 +585,7 @@ export function ChatContent() {
                   <AnsweredQuestionsSidebar
                     questions={lastClarificationQuestions}
                     answers={lastClarificationAnswers}
+                    sections={result.clarification_question_sections ?? []}
                     embedded
                     onSave={(newAnswers) => {
                       setLastClarificationAnswers(newAnswers);

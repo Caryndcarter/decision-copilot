@@ -77,6 +77,7 @@ function RunResultContent() {
     }
   }, [searchParams]);
 
+  // Refetch when run_id changes so dropdown stays in sync (e.g. after navigating from chat)
   useEffect(() => {
     if (!result?.decision_id) return;
     fetch(`/api/decision/run?decision_id=${encodeURIComponent(result.decision_id)}`)
@@ -86,16 +87,17 @@ function RunResultContent() {
         else setOtherRuns([]);
       })
       .catch(() => setOtherRuns([]));
-  }, [result?.decision_id]);
+  }, [result?.decision_id, result?.run_id]);
 
   useEffect(() => {
     if (showRerunModal && result) {
-      const other = POSTURES.find((p) => p !== result.intake.posture);
-      if (other) setRerunPosture(other);
+      const posturesRun = new Set((otherRuns.length > 0 ? otherRuns : [result]).map((r) => r.intake.posture));
+      const available = POSTURES.filter((p) => !posturesRun.has(p));
+      if (available[0]) setRerunPosture(available[0]);
       setRerunLeaningDirection("");
       setRerunError(null);
     }
-  }, [showRerunModal, result?.intake.posture]);
+  }, [showRerunModal, result?.intake.posture, otherRuns]);
 
   const handleUpdatedResult = (updated: DecisionRunResult) => {
     setResult(updated);
@@ -142,8 +144,12 @@ function RunResultContent() {
     );
   }
 
-  const runsForDropdown = otherRuns.length > 0 ? otherRuns : [result];
+  const runsList = otherRuns.length > 0 ? otherRuns : [result];
+  const hasCurrent = result && runsList.some((r) => r.run_id === result.run_id);
+  const runsForDropdown = hasCurrent ? runsList : result ? [result, ...runsList] : runsList;
   const currentPostureLabel = postureLabel(result.intake.posture);
+  const posturesAlreadyRun = new Set(runsForDropdown.map((r) => r.intake.posture));
+  const availablePostures = POSTURES.filter((p) => !posturesAlreadyRun.has(p));
 
   async function handleRerunPosture() {
     if (rerunPosture === "pressure_test" && !rerunLeaningDirection.trim()) {
@@ -241,20 +247,24 @@ function RunResultContent() {
               Re-run the same analysis (same situation, constraints, and your clarification answers) with a different posture.
             </p>
             <div className="mt-4 space-y-4">
+              {availablePostures.length === 0 ? (
+                <p className="text-sm text-slate-600">You&apos;ve already run all postures for this decision. Use the dropdown above to switch between them.</p>
+              ) : (
               <div>
                 <label htmlFor="rerun-posture-result" className="block text-sm font-medium text-slate-700">Posture</label>
                 <select
                   id="rerun-posture-result"
-                  value={rerunPosture}
+                  value={availablePostures.includes(rerunPosture) ? rerunPosture : availablePostures[0]}
                   onChange={(e) => setRerunPosture(e.target.value as Posture)}
                   className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-800 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
                 >
-                  {POSTURES.filter((p) => p !== result.intake.posture).map((p) => (
+                  {availablePostures.map((p) => (
                     <option key={p} value={p}>{postureLabel(p)}</option>
                   ))}
                 </select>
               </div>
-              {rerunPosture === "pressure_test" && (
+              )}
+              {rerunPosture === "pressure_test" && availablePostures.length > 0 && (
                 <div>
                   <label htmlFor="rerun-leaning-result" className="block text-sm font-medium text-slate-700">Leaning toward</label>
                   <input
@@ -276,7 +286,7 @@ function RunResultContent() {
               <button
                 type="button"
                 onClick={handleRerunPosture}
-                disabled={rerunSubmitting || (rerunPosture === "pressure_test" && !rerunLeaningDirection.trim())}
+                disabled={rerunSubmitting || availablePostures.length === 0 || (rerunPosture === "pressure_test" && !rerunLeaningDirection.trim())}
                 className="rounded-md bg-sky-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-sky-700 disabled:opacity-50"
               >
                 {rerunSubmitting ? "Running…" : "Run analysis"}

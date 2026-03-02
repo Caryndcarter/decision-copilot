@@ -66,6 +66,17 @@ function isValidPosture(posture: string): posture is Posture {
   return ["explore", "pressure_test", "surface_risks", "generate_alternatives"].includes(posture);
 }
 
+const POSTURE_LABELS: Record<string, string> = {
+  explore: "Explore",
+  pressure_test: "Pressure test",
+  surface_risks: "Surface risks",
+  generate_alternatives: "Generate alternatives",
+};
+
+function postureLabel(posture: string): string {
+  return POSTURE_LABELS[posture] ?? posture.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
 function validateIntake(intake: InitialRunRequest["intake"]): string | null {
   if (!intake.situation?.trim()) {
     return "situation is required";
@@ -219,12 +230,23 @@ async function handleIntake(req: InitialRunRequest): Promise<NextResponse> {
     status = isStubBrief(decision_brief) ? "pending_brief" : "complete";
   }
 
+  const clarification_question_sections =
+    clarification_questions.length > 0
+      ? [
+          {
+            postureLabel: `${postureLabel(intake.posture)} posture`,
+            keys: clarification_questions.map((q) => `${q.lens}-${q.question_id}`),
+          },
+        ]
+      : undefined;
+
   const result: DecisionRunResult = {
     decision_id,
     run_id,
     status,
     intake,
     clarification_questions,
+    clarification_question_sections,
     clarification_needed,
     clarifications: [],
     lens_outputs,
@@ -289,7 +311,9 @@ async function handleClarification(req: ClarificationRequest): Promise<NextRespo
   existingRun.decision_brief = decision_brief;
   existingRun.status = isStubBrief(decision_brief) ? "pending_brief" : "complete";
   existingRun.clarification_needed = false;
-  // Keep clarification_questions so chat API can include them in context (user can ask about the questions/answers)
+  // Keep clarification_questions and clarification_question_sections so chat and rerun posture can use them
+  existingRun.clarification_questions = existingRun.clarification_questions ?? [];
+  existingRun.clarification_question_sections = existingRun.clarification_question_sections ?? undefined;
 
   await replaceRun(req.run_id, existingRun);
 
@@ -382,11 +406,35 @@ async function handleRerunPosture(req: RerunPostureRequest): Promise<NextRespons
   const lens_outputs = await runLenses(newIntake, []);
   const new_questions = extractClarificationQuestions(lens_outputs);
   const old_questions = sourceRun.clarification_questions ?? [];
-  // Combine: show old questions (with prefill from source run answers) then add new questions not already in old
+  // Combine: new questions first (at top), then old questions; build sections by posture for UI labels
   const seenKey = (q: LensQuestion) => `${q.lens}-${q.question_id}`;
   const oldKeys = new Set(old_questions.map(seenKey));
   const additionalNew = new_questions.filter((q) => !oldKeys.has(seenKey(q)));
-  const clarification_questions = [...old_questions, ...additionalNew];
+  const clarification_questions = [...additionalNew, ...old_questions];
+  const newKeys = additionalNew.map(seenKey);
+  const oldKeysSet = new Set(old_questions.map(seenKey));
+  const clarification_question_sections: { postureLabel: string; keys: string[] }[] = [];
+  if (newKeys.length > 0) {
+    clarification_question_sections.push({
+      postureLabel: `${postureLabel(newIntake.posture)} posture`,
+      keys: newKeys,
+    });
+  }
+  if (old_questions.length > 0) {
+    if (sourceRun.clarification_question_sections?.length) {
+      for (const sec of sourceRun.clarification_question_sections) {
+        const keysInThisRun = sec.keys.filter((k) => oldKeysSet.has(k));
+        if (keysInThisRun.length > 0) {
+          clarification_question_sections.push({ postureLabel: sec.postureLabel, keys: keysInThisRun });
+        }
+      }
+    } else {
+      clarification_question_sections.push({
+        postureLabel: `${postureLabel(sourceRun.intake.posture)} posture`,
+        keys: old_questions.map(seenKey),
+      });
+    }
+  }
   const clarification_needed = clarification_questions.length > 0;
 
   // Prefill clarifications with old answers so the form can show them (user can edit and submit with any new answers)
@@ -419,6 +467,8 @@ async function handleRerunPosture(req: RerunPostureRequest): Promise<NextRespons
     status,
     intake: newIntake,
     clarification_questions,
+    clarification_question_sections:
+      clarification_question_sections.length > 0 ? clarification_question_sections : undefined,
     clarification_needed,
     clarifications,
     lens_outputs,

@@ -166,8 +166,10 @@ export interface DecisionRunResult {
   /** Current state of this run */
   status: DecisionRunStatus;
   intake: DecisionIntake;
-  /** 0–5 questions for clarification */
+  /** 0–5 questions for clarification (when from rerun_posture: new first, then from previous run) */
   clarification_questions: LensQuestion[];
+  /** When set, sections with posture labels so UI can group questions by posture (e.g. "Explore posture", "Generate alternatives posture") */
+  clarification_question_sections?: { postureLabel: string; keys: string[] }[];
   clarification_needed: boolean;
   /** Clarifications submitted for this run */
   clarifications: Clarification[];
