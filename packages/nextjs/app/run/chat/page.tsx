@@ -377,7 +377,16 @@ export function ChatContent() {
                 ) : null}
 
                 <div className={hasPendingQuestions || hasAnsweredSnapshot ? "border-t border-slate-200 pt-4" : ""}>
-                  <ResultChat runId={result.run_id} hideHeader initialMessages={result.chat_messages} />
+                  <ResultChat
+                  runId={result.run_id}
+                  hideHeader
+                  initialMessages={result.chat_messages}
+                  clarificationContext={
+                    lastClarificationQuestions?.length && lastClarificationAnswers && Object.keys(lastClarificationAnswers).length > 0
+                      ? { questions: lastClarificationQuestions, answers: lastClarificationAnswers }
+                      : undefined
+                  }
+                />
                 </div>
               </div>
             </div>

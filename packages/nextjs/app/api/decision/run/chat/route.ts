@@ -1,9 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getRun, replaceRun } from "@/lib/db/runs";
 import { openai } from "@/llm";
-import type { DecisionRunResult } from "@/types/decision";
+import type { DecisionRunResult, LensQuestion } from "@/types/decision";
 
-function buildRunContext(result: DecisionRunResult): string {
+/** Optional override so chat can use current questions/answers (e.g. sidebar edits only in sessionStorage) */
+interface ClarificationContextOverride {
+  questions: LensQuestion[];
+  answers: Record<string, string | number | boolean>;
+}
+
+function buildRunContext(
+  result: DecisionRunResult,
+  clarificationOverride?: ClarificationContextOverride
+): string {
   const parts: string[] = [];
 
   parts.push("## Decision context");
@@ -50,14 +59,29 @@ function buildRunContext(result: DecisionRunResult): string {
     }
   }
 
-  if (result.clarification_questions?.length) {
+  const questions = clarificationOverride?.questions ?? result.clarification_questions ?? [];
+  if (questions.length > 0) {
     parts.push("\n## Follow-up questions (from the analysis)");
-    result.clarification_questions.forEach((q, i) => {
+    questions.forEach((q, i) => {
       parts.push(`${i + 1}. [${q.lens}] ${q.question_text}`);
     });
   }
 
-  if (result.clarifications?.length) {
+  if (clarificationOverride?.answers && Object.keys(clarificationOverride.answers).length > 0 && questions.length > 0) {
+    parts.push("\n## User's answers to follow-up questions (current)");
+    questions.forEach((q, i) => {
+      const key = `${q.lens}-${q.question_id}`;
+      const raw = clarificationOverride.answers[key];
+      if (raw === undefined) return;
+      const answer =
+        typeof raw === "boolean"
+          ? raw
+            ? "Yes"
+            : "No"
+          : String(raw);
+      parts.push(`${i + 1}. ${q.question_text}: ${answer}`);
+    });
+  } else if (result.clarifications?.length) {
     const last = result.clarifications[result.clarifications.length - 1];
     if (last.answers?.length) {
       parts.push("\n## User's answers to follow-up questions");
@@ -83,10 +107,18 @@ function buildRunContext(result: DecisionRunResult): string {
 export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
     const body = await request.json();
-    const { run_id, messages = [], newMessage } = body as {
+    const {
+      run_id,
+      messages = [],
+      newMessage,
+      clarification_questions,
+      clarification_answers,
+    } = body as {
       run_id?: string;
       messages?: { role: "user" | "assistant"; content: string }[];
       newMessage?: string;
+      clarification_questions?: LensQuestion[];
+      clarification_answers?: Record<string, string | number | boolean>;
     };
 
     if (!run_id?.trim()) {
@@ -101,7 +133,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ error: "Run not found" }, { status: 404 });
     }
 
-    const context = buildRunContext(run);
+    const clarificationOverride =
+      clarification_questions?.length && clarification_answers && Object.keys(clarification_answers).length > 0
+        ? { questions: clarification_questions, answers: clarification_answers }
+        : undefined;
+    const context = buildRunContext(run, clarificationOverride);
     const systemContent = `You are a helpful assistant for someone reviewing a decision analysis. Use ONLY the following context about their decision and analysis to answer their questions. Be concise and direct. If they ask something outside this context, say so and offer to focus on what's in the analysis.
 
 ${context}`;

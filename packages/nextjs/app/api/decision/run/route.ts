@@ -274,7 +274,7 @@ async function handleClarification(req: ClarificationRequest): Promise<NextRespo
   existingRun.decision_brief = decision_brief;
   existingRun.status = isStubBrief(decision_brief) ? "pending_brief" : "complete";
   existingRun.clarification_needed = false;
-  existingRun.clarification_questions = [];
+  // Keep clarification_questions so chat API can include them in context (user can ask about the questions/answers)
 
   await replaceRun(req.run_id, existingRun);
 

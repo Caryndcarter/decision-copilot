@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import type { LensQuestion } from "@/types/decision";
+import type { ClarificationAnswersMap } from "./clarification-form";
 
 export interface ChatMessage {
   role: "user" | "assistant";
@@ -37,9 +39,11 @@ export interface ResultChatProps {
   hideHeader?: boolean;
   /** Initial messages when run was loaded by run_id (from API); sessionStorage overrides when present */
   initialMessages?: ChatMessage[];
+  /** Current clarification Q&A so the AI can answer about the questions and the user's (possibly edited) answers */
+  clarificationContext?: { questions: LensQuestion[]; answers: ClarificationAnswersMap };
 }
 
-export function ResultChat({ runId, className = "", hideHeader = false, initialMessages }: ResultChatProps) {
+export function ResultChat({ runId, className = "", hideHeader = false, initialMessages, clarificationContext }: ResultChatProps) {
   const [messages, setMessages] = useState<ChatMessage[]>(() => {
     const stored = getStoredChat(runId);
     if (stored?.length) return stored;
@@ -83,14 +87,25 @@ export function ResultChat({ runId, className = "", hideHeader = false, initialM
     setLoading(true);
 
     try {
+      const body: {
+        run_id: string;
+        messages: ChatMessage[];
+        newMessage: string;
+        clarification_questions?: LensQuestion[];
+        clarification_answers?: ClarificationAnswersMap;
+      } = {
+        run_id: runId,
+        messages: messages,
+        newMessage: text,
+      };
+      if (clarificationContext?.questions?.length && clarificationContext.answers && Object.keys(clarificationContext.answers).length > 0) {
+        body.clarification_questions = clarificationContext.questions;
+        body.clarification_answers = clarificationContext.answers;
+      }
       const res = await fetch("/api/decision/run/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          run_id: runId,
-          messages: messages,
-          newMessage: text,
-        }),
+        body: JSON.stringify(body),
       });
       const data = await res.json();
 
