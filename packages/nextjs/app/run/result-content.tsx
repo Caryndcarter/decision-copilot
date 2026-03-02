@@ -31,14 +31,24 @@ function Section({
   title,
   children,
   className = "",
+  updated,
 }: {
   title: string;
   children: React.ReactNode;
   className?: string;
+  /** When true, show an "Updated" badge (analysis changed after clarification) */
+  updated?: boolean;
 }) {
   return (
     <section className={className}>
-      <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">{title}</h2>
+      <div className="flex flex-wrap items-center gap-2">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">{title}</h2>
+        {updated && (
+          <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-xs font-medium text-emerald-800">
+            Updated
+          </span>
+        )}
+      </div>
       <div className="mt-2">{children}</div>
     </section>
   );
@@ -339,6 +349,52 @@ function sectionKey(lens: string, field: string) {
   return `${lens}.${field}`;
 }
 
+/** Compare first-draft vs current to see which sections changed after clarification */
+function getAnalysisChanges(result: DecisionRunResult): {
+  risk: boolean;
+  reversibility: boolean;
+  people: boolean;
+  brief: boolean;
+  hasAny: boolean;
+} {
+  const first = result.lens_outputs_first_draft;
+  const current = result.lens_outputs;
+  const briefFirst = result.decision_brief_first_draft;
+  const briefCurrent = result.decision_brief;
+  const noFirstDraft = !first?.length;
+  const noClarifications = !result.clarifications?.length;
+  if (noFirstDraft || noClarifications) {
+    return { risk: false, reversibility: false, people: false, brief: false, hasAny: false };
+  }
+  const riskFirst = first.find((o) => o.lens === "risk");
+  const riskCurrent = current?.find((o) => o.lens === "risk");
+  const revFirst = first.find((o) => o.lens === "reversibility");
+  const revCurrent = current?.find((o) => o.lens === "reversibility");
+  const peopleFirst = first.find((o) => o.lens === "people");
+  const peopleCurrent = current?.find((o) => o.lens === "people");
+  const risk =
+    !!riskFirst &&
+    !!riskCurrent &&
+    JSON.stringify(riskFirst) !== JSON.stringify(riskCurrent);
+  const reversibility =
+    !!revFirst &&
+    !!revCurrent &&
+    JSON.stringify(revFirst) !== JSON.stringify(revCurrent);
+  const people =
+    !!peopleFirst &&
+    !!peopleCurrent &&
+    JSON.stringify(peopleFirst) !== JSON.stringify(peopleCurrent);
+  const brief =
+    !!briefFirst &&
+    !!briefCurrent &&
+    (briefFirst.summary !== briefCurrent.summary ||
+      briefFirst.recommendation !== briefCurrent.recommendation ||
+      JSON.stringify(briefFirst.key_considerations ?? []) !== JSON.stringify(briefCurrent.key_considerations ?? []) ||
+      JSON.stringify(briefFirst.next_steps ?? []) !== JSON.stringify(briefCurrent.next_steps ?? []));
+  const hasAny = risk || reversibility || people || brief;
+  return { risk, reversibility, people, brief, hasAny };
+}
+
 /** Build new lens_outputs with one list field updated (string[] or object[]) */
 function withUpdatedList(
   lensOutputs: LensOutput[],
@@ -386,6 +442,8 @@ export function ResultContent({ result, className = "", onRunUpdate }: ResultCon
   const titleRef = useRef<ClarificationAnswerEditorHandle>(null);
   const summaryRef = useRef<ClarificationAnswerEditorHandle>(null);
   const recommendationBodyRef = useRef<ClarificationAnswerEditorHandle>(null);
+
+  const analysisChanges = getAnalysisChanges(result);
 
   const riskLens = result.lens_outputs?.find((o) => o.lens === "risk") as
     | (LensOutput & { top_risks?: string[] })
@@ -555,12 +613,34 @@ export function ResultContent({ result, className = "", onRunUpdate }: ResultCon
         </div>
       </Card>
 
+      {analysisChanges.hasAny && (
+        <div className="mb-6 rounded-lg border border-emerald-200 bg-emerald-50/80 px-4 py-3">
+          <p className="text-sm font-medium text-emerald-900">
+            Your clarification answers refined the analysis. The following sections were updated:
+          </p>
+          <ul className="mt-1.5 flex flex-wrap gap-2 text-sm text-emerald-800">
+            {analysisChanges.risk && (
+              <li className="rounded bg-emerald-100 px-2 py-0.5 font-medium">Risk analysis</li>
+            )}
+            {analysisChanges.reversibility && (
+              <li className="rounded bg-emerald-100 px-2 py-0.5 font-medium">Reversibility</li>
+            )}
+            {analysisChanges.people && (
+              <li className="rounded bg-emerald-100 px-2 py-0.5 font-medium">People</li>
+            )}
+            {analysisChanges.brief && (
+              <li className="rounded bg-emerald-100 px-2 py-0.5 font-medium">Decision brief</li>
+            )}
+          </ul>
+        </div>
+      )}
+
       {/* Risk (rose tint) */}
       {riskLens && (
         <div className="mt-6 space-y-4">
           {(riskLens.top_risks?.length || canEdit) && (
             <div className="rounded-lg border border-rose-200 bg-rose-50/60 p-4 shadow-sm">
-              <Section title="Top risks">
+              <Section title="Top risks" updated={analysisChanges.risk}>
                 {canEdit ? (
                   <LensBoxEditor
                     editorKey={sectionKey("risk", "top_risks")}
@@ -712,7 +792,7 @@ export function ResultContent({ result, className = "", onRunUpdate }: ResultCon
         <div className="mt-6 space-y-4">
           {(reversibilityLens.irreversible_steps?.length || canEdit) && (
             <div className="rounded-lg border border-amber-200 bg-amber-50/80 p-4 shadow-sm">
-              <Section title="Irreversible steps">
+              <Section title="Irreversible steps" updated={analysisChanges.reversibility}>
                 <p className="mb-2 text-sm text-slate-600">
                   Steps or commitments that would be hard or impossible to undo.
                 </p>
@@ -770,7 +850,7 @@ export function ResultContent({ result, className = "", onRunUpdate }: ResultCon
         <div className="mt-6 space-y-4">
           {(peopleLens.stakeholder_impacts?.length || canEdit) && (
             <div className="rounded-lg border border-violet-200 bg-violet-50/80 p-4 shadow-sm">
-              <Section title="Stakeholder impacts">
+              <Section title="Stakeholder impacts" updated={analysisChanges.people}>
                 <p className="mb-3 text-sm text-slate-600">Who is affected by this decision and how.</p>
                 {editingSection === sectionKey("people", "stakeholder_impacts") ? (
                   <EditableStakeholderImpacts
@@ -848,30 +928,37 @@ export function ResultContent({ result, className = "", onRunUpdate }: ResultCon
       {/* Decision brief */}
       {result.decision_brief && (
         <div className="mt-6 rounded-lg border border-sky-200 bg-sky-50 p-4 shadow-sm">
-          <div className="flex flex-wrap items-baseline justify-between gap-2">
-            {canEdit && !isStubBrief && briefDraft ? (
-              <div className="min-w-0 flex-1">
-                <ClarificationAnswerEditor
-                  ref={titleRef}
-                  editorKey="brief.title"
-                  value={briefDraft.title || "Decision brief"}
-                  onChange={(v) => {
-                    setBriefDraft((b) => (b ? { ...b, title: v || "Decision brief" } : null));
-                    persistBrief();
-                  }}
-                  variant="inline"
-                  className="text-lg font-semibold text-slate-900"
-                />
-              </div>
-            ) : (
-              <h2 className="text-lg font-semibold text-slate-900">
-                {result.decision_brief.title || "Decision brief"}
-              </h2>
-            )}
-            {result.decision_brief.generated_at && (
-              <p className="text-xs text-slate-500">
-                Generated {formatBriefDate(result.decision_brief.generated_at)}
-              </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap items-baseline justify-between gap-2 min-w-0 flex-1">
+              {canEdit && !isStubBrief && briefDraft ? (
+                <div className="min-w-0 flex-1">
+                  <ClarificationAnswerEditor
+                    ref={titleRef}
+                    editorKey="brief.title"
+                    value={briefDraft.title || "Decision brief"}
+                    onChange={(v) => {
+                      setBriefDraft((b) => (b ? { ...b, title: v || "Decision brief" } : null));
+                      persistBrief();
+                    }}
+                    variant="inline"
+                    className="text-lg font-semibold text-slate-900"
+                  />
+                </div>
+              ) : (
+                <h2 className="text-lg font-semibold text-slate-900">
+                  {result.decision_brief.title || "Decision brief"}
+                </h2>
+              )}
+              {result.decision_brief.generated_at && (
+                <p className="text-xs text-slate-500">
+                  Generated {formatBriefDate(result.decision_brief.generated_at)}
+                </p>
+              )}
+            </div>
+            {analysisChanges.brief && (
+              <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-xs font-medium text-emerald-800">
+                Updated
+              </span>
             )}
           </div>
           <div className="mt-3">
