@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getRun, replaceRun } from "@/lib/db/runs";
-import { openai } from "@/llm";
+import { getClient } from "@/llm";
 import type { DecisionRunResult, LensQuestion } from "@/types/decision";
 
 /** Optional override so chat can use current questions/answers (e.g. sidebar edits only in sessionStorage) */
@@ -148,7 +148,8 @@ ${context}`;
       { role: "user", content: newMessage.trim() },
     ];
 
-    const response = await openai.run(chatMessages, { temperature: 0.5, maxTokens: 1024 });
+    const client = getClient(run.llm_provider ?? "openai");
+    const response = await client.run(chatMessages, { temperature: 0.5, maxTokens: 1024 });
 
     const updatedMessages = [
       ...(run.chat_messages ?? []),
@@ -160,7 +161,19 @@ ${context}`;
     return NextResponse.json({ content: response.content });
   } catch (error) {
     console.error("Decision run chat error:", error);
-    const message = error instanceof Error ? error.message : "Internal server error";
-    return NextResponse.json({ error: message }, { status: 500 });
+    const message = error instanceof Error ? error.message : "";
+    if (message.includes("API_KEY") && message.includes("not set")) {
+      return NextResponse.json(
+        {
+          error:
+            "The AI provider for this run is not configured. Add the required API key to your .env (e.g. ANTHROPIC_API_KEY or OPENAI_API_KEY).",
+        },
+        { status: 503 }
+      );
+    }
+    return NextResponse.json(
+      { error: message || "Internal server error" },
+      { status: 500 }
+    );
   }
 }

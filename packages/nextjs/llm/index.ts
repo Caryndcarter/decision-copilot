@@ -11,7 +11,17 @@
  */
 
 import "server-only";
+import type { LLMClient, LLMProvider } from "./types";
+import { openai } from "./openai";
+import { anthropic } from "./anthropic";
 
 export * from "./types";
 export { openai, run as runOpenAI } from "./openai";
 export { anthropic, run as runAnthropic } from "./anthropic";
+
+const clients: Record<LLMProvider, LLMClient> = { openai, anthropic };
+
+/** Return the LLM client for the given provider (use for lenses, brief, chat). */
+export function getClient(provider: LLMProvider): LLMClient {
+  return clients[provider];
+}

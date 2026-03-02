@@ -19,6 +19,11 @@ const POSTURES = [
   { value: "generate_alternatives", label: "Generate alternatives" },
 ] as const;
 
+const LLM_PROVIDERS = [
+  { value: "openai", label: "OpenAI" },
+  { value: "anthropic", label: "Anthropic" },
+] as const;
+
 const DEMO_SCENARIOS = [
   {
     id: "slack-to-teams",
@@ -65,10 +70,14 @@ const DEMO_SCENARIOS = [
   },
 ] as const;
 
+type ProviderValue = (typeof LLM_PROVIDERS)[number]["value"];
+
 export default function IntakePage() {
   const [situation, setSituation] = useState("");
   const [constraints, setConstraints] = useState("");
   const [posture, setPosture] = useState<(typeof POSTURES)[number]["value"]>("explore");
+  const [llmProvider, setLlmProvider] = useState<ProviderValue>("openai");
+  const [availableProviders, setAvailableProviders] = useState<ProviderValue[]>([]);
   const [leaningDirection, setLeaningDirection] = useState("");
   const [knownsAssumptions, setKnownsAssumptions] = useState("");
   const [unknowns, setUnknowns] = useState("");
@@ -77,6 +86,19 @@ export default function IntakePage() {
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
   const showLeaningDirection = posture === "pressure_test";
+
+  // Only show AI providers that have API keys configured
+  useEffect(() => {
+    fetch("/api/decision/providers")
+      .then((res) => res.json())
+      .then((data: { providers?: string[] }) => {
+        const list = Array.isArray(data?.providers) ? data.providers : [];
+        const valid = list.filter((p): p is ProviderValue => p === "openai" || p === "anthropic");
+        setAvailableProviders(valid.length > 0 ? valid : ["openai"]);
+        setLlmProvider((prev) => (valid.includes(prev) ? prev : (valid[0] ?? "openai")));
+      })
+      .catch(() => setAvailableProviders(["openai"]));
+  }, []);
 
   function loadDemo(demoId: string) {
     const demo = DEMO_SCENARIOS.find((d) => d.id === demoId);
@@ -117,19 +139,30 @@ export default function IntakePage() {
       const res = await fetch("/api/decision/run", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type: "intake", intake }),
+        body: JSON.stringify({ type: "intake", intake, llm_provider: llmProvider }),
       });
-      const data = await res.json();
+      const text = await res.text();
+      let data: { error?: string; run_id?: string };
+      try {
+        data = text ? JSON.parse(text) : {};
+      } catch {
+        setError(res.ok ? "Server returned an invalid response. Please try again." : `Request failed (${res.status}). Please try again.`);
+        return;
+      }
 
       if (!res.ok) {
         setError(data.error || `Request failed (${res.status})`);
+        return;
+      }
+      if (!data.run_id) {
+        setError("Server returned an invalid response. Please try again.");
         return;
       }
 
       if (typeof window !== "undefined") {
         sessionStorage.setItem(RUN_RESULT_KEY, JSON.stringify(data));
       }
-      router.push(data.run_id ? `/run/chat?run_id=${data.run_id}` : "/run/chat");
+      router.push(`/run/chat?run_id=${data.run_id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
@@ -233,6 +266,26 @@ export default function IntakePage() {
                 placeholder="e.g. Migrating to PostgreSQL"
                 className="mt-1.5 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 placeholder-slate-400 shadow-sm focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
               />
+            </div>
+          )}
+
+          {availableProviders.length > 1 && (
+            <div>
+              <label htmlFor="llm_provider" className="block text-sm font-medium text-slate-700">
+                AI provider
+              </label>
+              <select
+                id="llm_provider"
+                value={llmProvider}
+                onChange={(e) => setLlmProvider(e.target.value as ProviderValue)}
+                className="mt-1.5 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 shadow-sm focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
+              >
+                {LLM_PROVIDERS.filter((p) => availableProviders.includes(p.value)).map((p) => (
+                  <option key={p.value} value={p.value}>
+                    {p.label}
+                  </option>
+                ))}
+              </select>
             </div>
           )}
 

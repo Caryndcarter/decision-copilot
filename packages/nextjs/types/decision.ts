@@ -26,6 +26,9 @@ export type DecisionRunStatus =
   | "pending_brief"
   | "complete";
 
+/** Which LLM provider was used for this run (lenses, brief, chat). */
+export type LLMProviderName = "openai" | "anthropic";
+
 // ============================================
 // 1) DecisionIntake (user → system)
 // ============================================
@@ -182,4 +185,6 @@ export interface DecisionRunResult {
   decision_brief_first_draft?: DecisionBrief;
   /** Chat messages for "ask about this analysis" (persisted with run when loading by run_id) */
   chat_messages?: { role: "user" | "assistant"; content: string }[];
+  /** LLM provider used for this run (lenses, brief, chat). Defaults to openai when missing. */
+  llm_provider?: LLMProviderName;
 }

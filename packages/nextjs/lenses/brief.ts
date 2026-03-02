@@ -6,8 +6,8 @@
  */
 
 import "server-only";
-import { openai } from "@/llm";
-import type { LLMMessage } from "@/llm/types";
+import { getClient } from "@/llm";
+import type { LLMMessage, LLMProvider } from "@/llm/types";
 import type {
   DecisionIntake,
   DecisionBrief,
@@ -40,7 +40,8 @@ const BRIEF_OUTPUT_SCHEMA = {
     next_steps: {
       type: "array",
       items: { type: "string" },
-      description: "3-7 concrete next steps the decision-maker can take",
+      description: "3-7 concrete, actionable next steps the decision-maker can take (required; do not leave empty)",
+      minItems: 1,
     },
   },
   required: ["title", "summary", "recommendation", "key_considerations", "next_steps"],
@@ -117,12 +118,12 @@ export function buildBriefPrompt(
 
   const systemPrompt = `You are a decision coach. Given a decision context and analyses from risk and reversibility lenses, produce a brief decision brief.
 
-Output:
+Output (all fields required; do not leave any array empty):
 - title: A short, contextual title (e.g. "Recommendation: Proceed with DB switch after staging" or "Exploring database migration options"). Not generic like "Decision brief".
 - summary: 2-4 sentences that synthesize the situation and the key findings for a busy reader.
 - recommendation: One clear sentence on what the decision-maker should do next.
 - key_considerations: 3-7 short items to keep in mind.
-- next_steps: 3-7 concrete, actionable next steps.
+- next_steps: 3-7 concrete, actionable next steps the decision-maker can take (required; always provide at least 3).
 
 Be specific to this decision. Avoid generic advice. Use the lens analyses and any user follow-up answers.`;
 
@@ -150,37 +151,53 @@ Produce the decision brief (title, summary, recommendation, key_considerations, 
 }
 
 interface RawBriefOutput {
-  title: string;
-  summary: string;
-  recommendation: string;
-  key_considerations: string[];
-  next_steps: string[];
+  title?: string;
+  summary?: string;
+  recommendation?: string;
+  key_considerations?: string[] | unknown[];
+  next_steps?: string[] | unknown[];
+  keyConsiderations?: string[] | unknown[];
+  nextSteps?: string[] | unknown[];
+}
+
+function normalizeStringArray(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value.filter((s): s is string => typeof s === "string" && s.trim().length > 0).map((s) => s.trim());
+  }
+  if (typeof value === "string" && value.trim()) {
+    return value
+      .split(/\n+/)
+      .map((s) => s.replace(/^[\s\-*•]+/, "").trim())
+      .filter(Boolean);
+  }
+  return [];
 }
 
 function parseBriefOutput(parsed: unknown, generated_at: string): DecisionBrief {
-  const raw = parsed as RawBriefOutput;
+  const raw = (parsed && typeof parsed === "object" ? parsed : {}) as RawBriefOutput;
+  const key_considerations = normalizeStringArray(
+    raw.key_considerations ?? raw.keyConsiderations
+  );
+  const next_steps = normalizeStringArray(raw.next_steps ?? raw.nextSteps);
   return {
     title: raw.title?.trim() || "Decision brief",
     generated_at,
     summary: raw.summary?.trim() || "",
     recommendation: raw.recommendation?.trim() || "",
-    key_considerations: Array.isArray(raw.key_considerations)
-      ? raw.key_considerations.filter((s): s is string => typeof s === "string")
-      : [],
-    next_steps: Array.isArray(raw.next_steps)
-      ? raw.next_steps.filter((s): s is string => typeof s === "string")
-      : [],
+    key_considerations,
+    next_steps,
   };
 }
 
 export async function runBriefSynthesis(
   intake: DecisionIntake,
   lensOutputs: LensOutput[],
-  clarifications: Clarification[] = []
+  clarifications: Clarification[] = [],
+  provider: LLMProvider = "openai"
 ): Promise<DecisionBrief> {
   const messages = buildBriefPrompt(intake, lensOutputs, clarifications);
 
-  const response = await openai.run(messages, {
+  const response = await getClient(provider).run(messages, {
     schema: BRIEF_OUTPUT_SCHEMA,
     temperature: 0.5,
     maxTokens: 1024,

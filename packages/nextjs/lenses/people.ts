@@ -6,8 +6,8 @@
  */
 
 import "server-only";
-import { openai } from "@/llm";
-import type { LLMMessage } from "@/llm/types";
+import { getClient } from "@/llm";
+import type { LLMMessage, LLMProvider } from "@/llm/types";
 import type {
   DecisionIntake,
   Posture,
@@ -248,11 +248,12 @@ export function parsePeopleOutput(parsed: unknown): PeopleLensOutput {
 
 export async function runPeopleLens(
   intake: DecisionIntake,
-  clarifications: Clarification[] = []
+  clarifications: Clarification[] = [],
+  provider: LLMProvider = "openai"
 ): Promise<PeopleLensOutput> {
   const messages = buildPeoplePrompt(intake, clarifications);
 
-  const response = await openai.run(messages, {
+  const response = await getClient(provider).run(messages, {
     schema: PEOPLE_OUTPUT_SCHEMA,
     temperature: 0.7,
     maxTokens: 2048,

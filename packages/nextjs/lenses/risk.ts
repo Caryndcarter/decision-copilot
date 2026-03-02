@@ -6,8 +6,8 @@
  */
 
 import "server-only";
-import { openai } from "@/llm";
-import type { LLMMessage } from "@/llm/types";
+import { getClient } from "@/llm";
+import type { LLMMessage, LLMProvider } from "@/llm/types";
 import type {
   DecisionIntake,
   Posture,
@@ -223,11 +223,12 @@ export function parseRiskOutput(parsed: unknown): RiskLensOutput {
 
 export async function runRiskLens(
   intake: DecisionIntake,
-  clarifications: Clarification[] = []
+  clarifications: Clarification[] = [],
+  provider: LLMProvider = "openai"
 ): Promise<RiskLensOutput> {
   const messages = buildRiskPrompt(intake, clarifications);
 
-  const response = await openai.run(messages, {
+  const response = await getClient(provider).run(messages, {
     schema: RISK_OUTPUT_SCHEMA,
     temperature: 0.7,
     maxTokens: 2048,

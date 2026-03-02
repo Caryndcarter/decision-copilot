@@ -9,6 +9,7 @@ import type {
   DecisionBrief,
   Posture,
   DecisionRunStatus,
+  LLMProviderName,
 } from "@/types/decision";
 import { runRiskLens } from "@/lenses/risk";
 import { runReversibilityLens } from "@/lenses/reversibility";
@@ -23,6 +24,8 @@ import { getRun, getRunsByDecisionId, insertRun, replaceRun } from "@/lib/db/run
 interface InitialRunRequest {
   type: "intake";
   intake: Omit<DecisionIntake, "decision_id"> & { decision_id?: string };
+  /** LLM provider for this run (default: openai) */
+  llm_provider?: LLMProviderName;
 }
 
 interface ClarificationRequest {
@@ -51,12 +54,19 @@ interface RerunPostureRequest {
   leaning_direction?: string;
 }
 
+interface RerunProviderRequest {
+  type: "rerun_provider";
+  run_id: string;
+  llm_provider: LLMProviderName;
+}
+
 type RunRequest =
   | InitialRunRequest
   | ClarificationRequest
   | UpdateLensOutputsRequest
   | UpdateBriefRequest
-  | RerunPostureRequest;
+  | RerunPostureRequest
+  | RerunProviderRequest;
 
 // ============================================
 // Validation
@@ -117,12 +127,13 @@ function extractClarificationQuestions(lensOutputs: LensOutput[]): LensQuestion[
 
 async function runLenses(
   intake: DecisionIntake,
-  clarifications: Clarification[]
+  clarifications: Clarification[],
+  provider: LLMProviderName = "openai"
 ): Promise<LensOutput[]> {
   const [riskOutput, reversibilityOutput, peopleOutput] = await Promise.all([
-    runRiskLens(intake, clarifications),
-    runReversibilityLens(intake, clarifications),
-    runPeopleLens(intake, clarifications),
+    runRiskLens(intake, clarifications, provider),
+    runReversibilityLens(intake, clarifications, provider),
+    runPeopleLens(intake, clarifications, provider),
   ]);
   return [riskOutput, reversibilityOutput, peopleOutput];
 }
@@ -130,9 +141,10 @@ async function runLenses(
 async function synthesizeBrief(
   intake: DecisionIntake,
   lensOutputs: LensOutput[],
-  clarifications: Clarification[] = []
+  clarifications: Clarification[] = [],
+  provider: LLMProviderName = "openai"
 ): Promise<DecisionBrief> {
-  return runBriefSynthesis(intake, lensOutputs, clarifications);
+  return runBriefSynthesis(intake, lensOutputs, clarifications, provider);
 }
 
 function isStubBrief(brief: DecisionBrief): boolean {
@@ -181,19 +193,31 @@ export async function POST(request: NextRequest) {
       return handleUpdateBrief(body);
     } else if (body.type === "rerun_posture") {
       return handleRerunPosture(body);
+    } else if (body.type === "rerun_provider") {
+      return handleRerunProvider(body);
     } else {
       return NextResponse.json(
         {
           error:
-            "Invalid request type. Must be 'intake', 'clarification', 'update_lens_outputs', 'update_brief', or 'rerun_posture'",
+            "Invalid request type. Must be 'intake', 'clarification', 'update_lens_outputs', 'update_brief', 'rerun_posture', or 'rerun_provider'",
         },
         { status: 400 }
       );
     }
   } catch (error) {
     console.error("Error processing decision run:", error);
+    const message = error instanceof Error ? error.message : "";
+    if (message.includes("API_KEY") && message.includes("not set")) {
+      return NextResponse.json(
+        {
+          error:
+            "The selected AI provider is not configured. Add the required API key to your .env (e.g. ANTHROPIC_API_KEY for Anthropic, OPENAI_API_KEY for OpenAI).",
+        },
+        { status: 503 }
+      );
+    }
     return NextResponse.json(
-      { error: "Internal server error" },
+      { error: message || "Internal server error" },
       { status: 500 }
     );
   }
@@ -213,8 +237,10 @@ async function handleIntake(req: InitialRunRequest): Promise<NextResponse> {
     decision_id,
   } as DecisionIntake;
 
+  const provider = req.llm_provider ?? "openai";
+
   // Run lenses to get initial analysis
-  const lens_outputs = await runLenses(intake, []);
+  const lens_outputs = await runLenses(intake, [], provider);
 
   // Extract any clarification questions from lens outputs
   const clarification_questions = extractClarificationQuestions(lens_outputs);
@@ -226,7 +252,7 @@ async function handleIntake(req: InitialRunRequest): Promise<NextResponse> {
   if (clarification_needed) {
     status = "awaiting_clarification";
   } else {
-    decision_brief = await synthesizeBrief(intake, lens_outputs, []);
+    decision_brief = await synthesizeBrief(intake, lens_outputs, [], provider);
     status = isStubBrief(decision_brief) ? "pending_brief" : "complete";
   }
 
@@ -253,6 +279,7 @@ async function handleIntake(req: InitialRunRequest): Promise<NextResponse> {
     decision_brief,
     lens_outputs_first_draft: lens_outputs,
     decision_brief_first_draft: decision_brief,
+    llm_provider: provider,
   };
 
   await insertRun(result);
@@ -299,12 +326,15 @@ async function handleClarification(req: ClarificationRequest): Promise<NextRespo
   existingRun.clarifications.push(clarification);
   existingRun.status = "processing_clarification";
 
+  const provider = existingRun.llm_provider ?? "openai";
+
   // Run full analysis with clarification (refined version)
-  const lens_outputs = await runLenses(existingRun.intake, existingRun.clarifications);
+  const lens_outputs = await runLenses(existingRun.intake, existingRun.clarifications, provider);
   const decision_brief = await synthesizeBrief(
     existingRun.intake,
     lens_outputs,
-    existingRun.clarifications
+    existingRun.clarifications,
+    provider
   );
 
   existingRun.lens_outputs = lens_outputs;
@@ -402,8 +432,10 @@ async function handleRerunPosture(req: RerunPostureRequest): Promise<NextRespons
     ...(req.posture !== "pressure_test" && { leaning_direction: undefined }),
   } as DecisionIntake;
 
+  const provider = sourceRun.llm_provider ?? "openai";
+
   // Run as a fresh analysis for this posture so we get first-draft lens output and any new clarification questions
-  const lens_outputs = await runLenses(newIntake, []);
+  const lens_outputs = await runLenses(newIntake, [], provider);
   const new_questions = extractClarificationQuestions(lens_outputs);
   const old_questions = sourceRun.clarification_questions ?? [];
   // Combine: new questions first (at top), then old questions; build sections by posture for UI labels
@@ -457,7 +489,7 @@ async function handleRerunPosture(req: RerunPostureRequest): Promise<NextRespons
   if (clarification_needed) {
     status = "awaiting_clarification";
   } else {
-    decision_brief = await synthesizeBrief(newIntake, lens_outputs, clarifications);
+    decision_brief = await synthesizeBrief(newIntake, lens_outputs, clarifications, provider);
     status = isStubBrief(decision_brief) ? "pending_brief" : "complete";
   }
 
@@ -475,6 +507,81 @@ async function handleRerunPosture(req: RerunPostureRequest): Promise<NextRespons
     decision_brief,
     lens_outputs_first_draft: lens_outputs,
     decision_brief_first_draft: decision_brief,
+    llm_provider: provider,
+  };
+
+  await insertRun(result);
+  return NextResponse.json(result);
+}
+
+async function handleRerunProvider(req: RerunProviderRequest): Promise<NextResponse> {
+  if (!req.run_id?.trim()) {
+    return NextResponse.json({ error: "run_id is required" }, { status: 400 });
+  }
+  if (req.llm_provider !== "openai" && req.llm_provider !== "anthropic") {
+    return NextResponse.json(
+      { error: "llm_provider must be 'openai' or 'anthropic'" },
+      { status: 400 }
+    );
+  }
+
+  const sourceRun = await getRun(req.run_id.trim());
+  if (!sourceRun) {
+    return NextResponse.json({ error: "Run not found" }, { status: 404 });
+  }
+
+  if (sourceRun.llm_provider === req.llm_provider) {
+    return NextResponse.json(
+      { error: `Run already uses ${req.llm_provider}. Choose the other provider.` },
+      { status: 400 }
+    );
+  }
+
+  const newRunId = randomUUID();
+  const decision_id = sourceRun.decision_id;
+  const provider = req.llm_provider;
+
+  // Same intake and clarifications; re-run lenses and brief with new provider
+  const lens_outputs = await runLenses(sourceRun.intake, sourceRun.clarifications ?? [], provider);
+  const clarification_questions = extractClarificationQuestions(lens_outputs);
+  const clarification_needed = clarification_questions.length > 0;
+
+  let status: DecisionRunStatus;
+  let decision_brief: DecisionBrief | undefined;
+
+  if (clarification_needed) {
+    status = "awaiting_clarification";
+    // Preserve existing question sections if we have them
+  } else {
+    decision_brief = await synthesizeBrief(
+      sourceRun.intake,
+      lens_outputs,
+      sourceRun.clarifications ?? [],
+      provider
+    );
+    status = isStubBrief(decision_brief) ? "pending_brief" : "complete";
+  }
+
+  const clarification_question_sections =
+    sourceRun.clarification_question_sections && sourceRun.clarification_question_sections.length > 0
+      ? sourceRun.clarification_question_sections
+      : undefined;
+
+  const result: DecisionRunResult = {
+    decision_id,
+    run_id: newRunId,
+    status,
+    intake: sourceRun.intake,
+    clarification_questions: clarification_questions.length ? clarification_questions : (sourceRun.clarification_questions ?? []),
+    clarification_question_sections: clarification_question_sections ?? sourceRun.clarification_question_sections,
+    clarification_needed,
+    clarifications: sourceRun.clarifications ?? [],
+    lens_outputs,
+    decision_brief,
+    lens_outputs_first_draft: lens_outputs,
+    decision_brief_first_draft: decision_brief,
+    llm_provider: provider,
+    chat_messages: sourceRun.chat_messages,
   };
 
   await insertRun(result);

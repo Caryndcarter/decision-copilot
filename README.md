@@ -81,10 +81,11 @@ Create a `.env` at the repo root. Relevant variables:
 
 | Variable | Purpose |
 |----------|---------|
-| `OPENAI_API_KEY` | Required for lenses and decision brief. |
+| `OPENAI_API_KEY` | Required for lenses and decision brief when using OpenAI. At least one of `OPENAI_API_KEY` or `ANTHROPIC_API_KEY` must be set. |
+| `ANTHROPIC_API_KEY` | Optional. When set, you can choose Anthropic as the AI provider (intake and “Run with different AI”). If only OpenAI is configured, the UI hides the Anthropic option. |
 | `MONGODB_URI` | Optional. If set and reachable, runs are stored in MongoDB; otherwise in-memory. |
 
-Other env (e.g. `PROJECT_KEY`, `PROJECT_ENV`, `Anthropic API Key`) may be used by other tooling or future features.
+Other env (e.g. `PROJECT_KEY`, `PROJECT_ENV`) may be used by other tooling.
 
 **“Server selection timed out” / MongoDB unavailable:** If you use MongoDB Atlas, add your current IP (or `0.0.0.0/0` for testing) under **Network Access** in the Atlas UI. Otherwise the cluster will refuse the connection and the driver will time out.
 

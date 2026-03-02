@@ -18,6 +18,9 @@ export default function Home() {
             Start a decision intake →
           </Link>
         </p>
+        <p className="mt-2 text-sm text-slate-500">
+          On the intake form you can choose your AI provider (OpenAI or Anthropic) before running the analysis.
+        </p>
       </div>
     </main>
   );

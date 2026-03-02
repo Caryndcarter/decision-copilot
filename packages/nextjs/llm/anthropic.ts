@@ -14,7 +14,7 @@ import type {
 } from "./types";
 
 const ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages";
-const DEFAULT_MODEL = "claude-sonnet-4-20250514";
+const DEFAULT_MODEL = "claude-sonnet-4-6";
 const DEFAULT_MAX_TOKENS = 4096;
 const API_VERSION = "2023-06-01";
 
@@ -28,6 +28,14 @@ function getApiKey(): string {
 
 function createError(code: string, message: string, retryable = false): LLMError {
   return { code, message, provider: "anthropic", retryable };
+}
+
+function safeJsonParse(str: string): unknown {
+  try {
+    return JSON.parse(str);
+  } catch {
+    return null;
+  }
 }
 
 function normalizeMessages(prompt: string | LLMMessage[]): {
@@ -97,25 +105,56 @@ export async function run(
     body: JSON.stringify(requestBody),
   });
 
+  const rawBody = await response.text();
+
   if (!response.ok) {
-    const error = await response.json().catch(() => ({}));
-    const message = error?.error?.message ?? `Anthropic API error: ${response.status}`;
+    let message = `Anthropic API error: ${response.status}`;
+    if (rawBody?.trim()) {
+      try {
+        const error = JSON.parse(rawBody) as { error?: { message?: string }; message?: string };
+        message = error?.error?.message ?? error?.message ?? message;
+      } catch {
+        message = rawBody.slice(0, 200);
+      }
+    }
     const retryable = response.status >= 500 || response.status === 429;
     throw createError(`HTTP_${response.status}`, message, retryable);
   }
 
-  const data = await response.json();
+  let data: Record<string, unknown>;
+  if (!rawBody?.trim()) {
+    throw createError("EMPTY_RESPONSE", "Anthropic returned an empty response", true);
+  }
+  try {
+    data = JSON.parse(rawBody) as Record<string, unknown>;
+  } catch {
+    throw createError("INVALID_JSON", `Anthropic response was not valid JSON: ${rawBody.slice(0, 100)}`, true);
+  }
 
   // Extract content - handle both text and tool_use responses
   let content = "";
   let parsed: unknown;
 
   for (const block of data.content ?? []) {
-    if (block.type === "text") {
-      content += block.text;
-    } else if (block.type === "tool_use" && block.name === "structured_response") {
-      parsed = block.input;
-      content = JSON.stringify(block.input);
+    if ((block as { type?: string }).type === "text") {
+      const text = (block as { text?: string }).text ?? "";
+      content += text;
+      // If we requested schema but got no tool_use, model may have returned JSON in text
+      if (!parsed && text.trim().startsWith("{")) {
+        const obj = safeJsonParse(text.trim());
+        if (obj && typeof obj === "object" && !Array.isArray(obj)) {
+          parsed = obj;
+        }
+      }
+    } else if (
+      (block as { type?: string; name?: string }).type === "tool_use" &&
+      (block as { name?: string }).name === "structured_response"
+    ) {
+      const input = (block as { input?: unknown }).input;
+      if (input !== undefined && input !== null) {
+        parsed = typeof input === "string" ? safeJsonParse(input) : input;
+        content = typeof parsed === "object" && parsed !== null ? JSON.stringify(parsed) : String(input);
+      }
     }
   }
 

@@ -6,8 +6,8 @@
  */
 
 import "server-only";
-import { openai } from "@/llm";
-import type { LLMMessage } from "@/llm/types";
+import { getClient } from "@/llm";
+import type { LLMMessage, LLMProvider } from "@/llm/types";
 import type {
   DecisionIntake,
   Posture,
@@ -226,11 +226,12 @@ export function parseReversibilityOutput(parsed: unknown): ReversibilityLensOutp
 
 export async function runReversibilityLens(
   intake: DecisionIntake,
-  clarifications: Clarification[] = []
+  clarifications: Clarification[] = [],
+  provider: LLMProvider = "openai"
 ): Promise<ReversibilityLensOutput> {
   const messages = buildReversibilityPrompt(intake, clarifications);
 
-  const response = await openai.run(messages, {
+  const response = await getClient(provider).run(messages, {
     schema: REVERSIBILITY_OUTPUT_SCHEMA,
     temperature: 0.7,
     maxTokens: 2048,

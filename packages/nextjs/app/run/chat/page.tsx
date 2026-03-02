@@ -24,6 +24,11 @@ function postureLabel(posture: string): string {
   return POSTURE_LABELS[posture] ?? posture.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
+function runLabel(r: DecisionRunResult): string {
+  const provider = r.llm_provider === "anthropic" ? "Anthropic" : "OpenAI";
+  return `${postureLabel(r.intake.posture)} — ${provider}`;
+}
+
 const POSTURES: Posture[] = ["explore", "pressure_test", "surface_risks", "generate_alternatives"];
 
 function getStoredSnapshot(run_id: string): { questions: LensQuestion[]; answers: ClarificationAnswersMap } | null {
@@ -220,6 +225,85 @@ function AnsweredQuestionsSidebar({
   );
 }
 
+function RunWithDifferentAIButton({
+  result,
+  onRerun,
+}: {
+  result: DecisionRunResult;
+  onRerun: (newRunId: string) => void;
+}) {
+  const [showModal, setShowModal] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const otherProvider = result.llm_provider === "anthropic" ? "openai" : "anthropic";
+  const otherLabel = otherProvider === "anthropic" ? "Anthropic" : "OpenAI";
+
+  async function handleRerun() {
+    setError(null);
+    setSubmitting(true);
+    try {
+      const res = await fetch("/api/decision/run", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "rerun_provider", run_id: result.run_id, llm_provider: otherProvider }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || "Failed to run");
+        return;
+      }
+      setShowModal(false);
+      onRerun((data as DecisionRunResult).run_id);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Something went wrong");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setShowModal(true)}
+        className="rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-1"
+      >
+        Run with different AI
+      </button>
+      {showModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-slate-900/50" aria-hidden onClick={() => !submitting && setShowModal(false)} />
+          <div className="relative z-10 w-full max-w-md rounded-lg border border-slate-200 bg-white p-6 shadow-xl">
+            <h2 className="text-lg font-semibold text-slate-900">Run with different AI</h2>
+            <p className="mt-1 text-sm text-slate-600">
+              Re-run the same analysis (same posture and clarifications) using {otherLabel} instead of{" "}
+              {result.llm_provider === "anthropic" ? "Anthropic" : "OpenAI"}.
+            </p>
+            {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
+            <div className="mt-6 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => !submitting && setShowModal(false)}
+                className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleRerun}
+                disabled={submitting}
+                className="rounded-md bg-sky-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-sky-700 disabled:opacity-50"
+              >
+                {submitting ? "Running…" : `Run with ${otherLabel}`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
 export function ChatContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -238,6 +322,17 @@ export function ChatContent() {
   const [rerunLeaningDirection, setRerunLeaningDirection] = useState("");
   const [rerunSubmitting, setRerunSubmitting] = useState(false);
   const [rerunError, setRerunError] = useState<string | null>(null);
+  const [canSwitchProvider, setCanSwitchProvider] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/decision/providers")
+      .then((res) => res.json())
+      .then((data: { providers?: string[] }) => {
+        const list = Array.isArray(data?.providers) ? data.providers : [];
+        setCanSwitchProvider(list.includes("openai") && list.includes("anthropic"));
+      })
+      .catch(() => setCanSwitchProvider(false));
+  }, []);
 
   useEffect(() => {
     const run_id = searchParams.get("run_id");
@@ -387,11 +482,12 @@ export function ChatContent() {
   const runsList = otherRuns.length > 0 ? otherRuns : (result ? [result] : []);
   const hasCurrent = result && runsList.some((r) => r.run_id === result.run_id);
   const runsForDropdown = hasCurrent ? runsList : result ? [result, ...runsList] : runsList;
-  const currentPostureLabel = postureLabel(result.intake.posture);
+  const currentRunLabel = runLabel(result);
   const posturesAlreadyRun = new Set(runsForDropdown.map((r) => r.intake.posture));
   const availablePostures = POSTURES.filter((p) => !posturesAlreadyRun.has(p));
 
   async function handleRerunPosture() {
+    if (!result) return;
     if (rerunPosture === "pressure_test" && !rerunLeaningDirection.trim()) {
       setRerunError("Leaning direction is required for Pressure test");
       return;
@@ -429,10 +525,10 @@ export function ChatContent() {
       <header className="sticky top-0 z-50 border-b border-slate-200 bg-white shadow-sm">
         <div className="mx-auto max-w-7xl px-6 py-4 flex items-center justify-between gap-4 flex-wrap">
           <h1 className="text-xl font-semibold text-slate-900">
-            Decision analysis <span className="font-medium text-slate-600">— {currentPostureLabel}</span>
+            Decision analysis <span className="font-medium text-slate-600">— {currentRunLabel}</span>
           </h1>
           <div className="flex items-center gap-3 flex-wrap">
-            {/* Posture run switcher */}
+            {/* Run switcher (posture + provider) */}
             <div className="relative">
               <button
                 type="button"
@@ -441,14 +537,14 @@ export function ChatContent() {
                 aria-expanded={postureDropdownOpen}
                 aria-haspopup="listbox"
               >
-                Posture: {currentPostureLabel}
+                {currentRunLabel}
                 <span className="text-slate-400">▾</span>
               </button>
               {postureDropdownOpen && (
                 <>
                   <div className="fixed inset-0 z-10" aria-hidden onClick={() => setPostureDropdownOpen(false)} />
                   <ul
-                    className="absolute left-0 top-full z-20 mt-1 min-w-[180px] rounded-md border border-slate-200 bg-white py-1 shadow-lg"
+                    className="absolute left-0 top-full z-20 mt-1 min-w-[200px] rounded-md border border-slate-200 bg-white py-1 shadow-lg"
                     role="listbox"
                   >
                     {runsForDropdown.map((r) => (
@@ -458,7 +554,7 @@ export function ChatContent() {
                           className={`block px-3 py-2 text-sm ${r.run_id === result.run_id ? "bg-sky-50 font-medium text-sky-800" : "text-slate-700 hover:bg-slate-50"}`}
                           onClick={() => setPostureDropdownOpen(false)}
                         >
-                          {postureLabel(r.intake.posture)}
+                          {runLabel(r)}
                           {r.run_id === result.run_id && " (current)"}
                         </Link>
                       </li>
@@ -474,6 +570,12 @@ export function ChatContent() {
             >
               Run with different posture
             </button>
+            {canSwitchProvider && (
+              <RunWithDifferentAIButton
+                result={result}
+                onRerun={(newRunId) => router.push(`/run/chat?run_id=${newRunId}`)}
+              />
+            )}
             <Link
               href={`/run/result${result.run_id ? `?run_id=${result.run_id}` : ""}`}
               className="inline-flex items-center rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-1"
