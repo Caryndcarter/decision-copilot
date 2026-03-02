@@ -188,7 +188,9 @@ function RunResultContent() {
     <main className="min-h-screen bg-slate-50">
       <header className="sticky top-0 z-50 border-b border-slate-200 bg-white shadow-sm">
         <div className="mx-auto max-w-3xl px-6 py-4 flex items-center justify-between gap-4 flex-wrap">
-          <h1 className="text-xl font-semibold text-slate-900">Decision analysis</h1>
+          <h1 className="text-xl font-semibold text-slate-900">
+            Decision analysis <span className="font-medium text-slate-600">— {currentPostureLabel}</span>
+          </h1>
           <div className="flex items-center gap-3 flex-wrap">
             <div className="relative">
               <button
@@ -228,10 +230,16 @@ function RunResultContent() {
             >
               Run with different posture
             </button>
-            <Link href={`/run/chat${result.run_id ? `?run_id=${result.run_id}` : ""}`} className="text-sm text-slate-500 underline hover:text-slate-700">
+            <Link
+              href={`/run/chat${result.run_id ? `?run_id=${result.run_id}` : ""}`}
+              className="inline-flex items-center rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-1"
+            >
               Chat view
             </Link>
-            <Link href="/intake" className="text-sm text-sky-600 underline hover:text-sky-700">
+            <Link
+              href="/intake"
+              className="inline-flex items-center rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-1"
+            >
               New intake
             </Link>
           </div>
