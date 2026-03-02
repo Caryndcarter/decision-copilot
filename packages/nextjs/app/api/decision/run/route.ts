@@ -378,23 +378,48 @@ async function handleRerunPosture(req: RerunPostureRequest): Promise<NextRespons
     ...(req.posture !== "pressure_test" && { leaning_direction: undefined }),
   } as DecisionIntake;
 
-  const clarifications: Clarification[] = sourceRun.clarifications.map((c) => ({
-    ...c,
-    run_id: newRunId,
-    decision_id,
-  }));
+  // Run as a fresh analysis for this posture so we get first-draft lens output and any new clarification questions
+  const lens_outputs = await runLenses(newIntake, []);
+  const new_questions = extractClarificationQuestions(lens_outputs);
+  const old_questions = sourceRun.clarification_questions ?? [];
+  // Combine: show old questions (with prefill from source run answers) then add new questions not already in old
+  const seenKey = (q: LensQuestion) => `${q.lens}-${q.question_id}`;
+  const oldKeys = new Set(old_questions.map(seenKey));
+  const additionalNew = new_questions.filter((q) => !oldKeys.has(seenKey(q)));
+  const clarification_questions = [...old_questions, ...additionalNew];
+  const clarification_needed = clarification_questions.length > 0;
 
-  const lens_outputs = await runLenses(newIntake, clarifications);
-  const decision_brief = await synthesizeBrief(newIntake, lens_outputs, clarifications);
-  const status: DecisionRunStatus = isStubBrief(decision_brief) ? "pending_brief" : "complete";
+  // Prefill clarifications with old answers so the form can show them (user can edit and submit with any new answers)
+  const lastSourceClarification = sourceRun.clarifications?.[sourceRun.clarifications.length - 1];
+  const clarifications: Clarification[] =
+    lastSourceClarification?.answers?.length && old_questions.length > 0
+      ? [
+          {
+            decision_id,
+            run_id: newRunId,
+            clarification_round: 0,
+            answers: lastSourceClarification.answers,
+          },
+        ]
+      : [];
+
+  let status: DecisionRunStatus;
+  let decision_brief: DecisionBrief | undefined;
+
+  if (clarification_needed) {
+    status = "awaiting_clarification";
+  } else {
+    decision_brief = await synthesizeBrief(newIntake, lens_outputs, clarifications);
+    status = isStubBrief(decision_brief) ? "pending_brief" : "complete";
+  }
 
   const result: DecisionRunResult = {
     decision_id,
     run_id: newRunId,
     status,
     intake: newIntake,
-    clarification_questions: [],
-    clarification_needed: false,
+    clarification_questions,
+    clarification_needed,
     clarifications,
     lens_outputs,
     decision_brief,

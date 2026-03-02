@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import type { DecisionRunResult, LensQuestion } from "@/types/decision";
 
 type ClarificationAnswers = Record<string, string | number | boolean>;
@@ -62,9 +62,33 @@ export function ClarificationForm({
   const [submitting, setSubmitting] = useState(false);
   const [submittingStep, setSubmittingStep] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const prefillInitializedRef = useRef(false);
 
   const questions = result.clarification_questions ?? [];
   if (questions.length === 0) return null;
+
+  // Reset when run changes so we can prefill again for a different run
+  useEffect(() => {
+    prefillInitializedRef.current = false;
+    setClarificationAnswers({});
+  }, [result.run_id]);
+
+  // Prefill from existing clarification answers (e.g. after "run with different posture" when we carry over old Q&A)
+  useEffect(() => {
+    const lastClar = result.clarifications?.[result.clarifications.length - 1];
+    if (!lastClar?.answers?.length || questions.length === 0 || prefillInitializedRef.current) return;
+    const prefilled: ClarificationAnswers = {};
+    for (const a of lastClar.answers) {
+      const key = questionKey({ lens: a.lens, question_id: a.question_id });
+      if (questions.some((q) => q.lens === a.lens && q.question_id === a.question_id)) {
+        prefilled[key] = a.answer;
+      }
+    }
+    if (Object.keys(prefilled).length > 0) {
+      setClarificationAnswers((prev) => ({ ...prefilled, ...prev }));
+      prefillInitializedRef.current = true;
+    }
+  }, [result?.clarification_questions, result?.clarifications, questions]);
 
   useEffect(() => {
     if (!submitting) return;
