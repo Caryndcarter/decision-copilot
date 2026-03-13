@@ -541,41 +541,40 @@ async function handleRerunProvider(req: RerunProviderRequest): Promise<NextRespo
   const decision_id = sourceRun.decision_id;
   const provider = req.llm_provider;
 
-  // Same intake and clarifications; re-run lenses and brief with new provider
-  const lens_outputs = await runLenses(sourceRun.intake, sourceRun.clarifications ?? [], provider);
+  // Same intake and posture, but no prior clarifications: let the new AI do a fresh first pass and ask its own questions
+  const lens_outputs = await runLenses(sourceRun.intake, [], provider);
   const clarification_questions = extractClarificationQuestions(lens_outputs);
   const clarification_needed = clarification_questions.length > 0;
+
+  const clarification_question_sections =
+    clarification_questions.length > 0
+      ? [
+          {
+            postureLabel: `${postureLabel(sourceRun.intake.posture)} posture`,
+            keys: clarification_questions.map((q) => `${q.lens}-${q.question_id}`),
+          },
+        ]
+      : undefined;
 
   let status: DecisionRunStatus;
   let decision_brief: DecisionBrief | undefined;
 
   if (clarification_needed) {
     status = "awaiting_clarification";
-    // Preserve existing question sections if we have them
   } else {
-    decision_brief = await synthesizeBrief(
-      sourceRun.intake,
-      lens_outputs,
-      sourceRun.clarifications ?? [],
-      provider
-    );
+    decision_brief = await synthesizeBrief(sourceRun.intake, lens_outputs, [], provider);
     status = isStubBrief(decision_brief) ? "pending_brief" : "complete";
   }
-
-  const clarification_question_sections =
-    sourceRun.clarification_question_sections && sourceRun.clarification_question_sections.length > 0
-      ? sourceRun.clarification_question_sections
-      : undefined;
 
   const result: DecisionRunResult = {
     decision_id,
     run_id: newRunId,
     status,
     intake: sourceRun.intake,
-    clarification_questions: clarification_questions.length ? clarification_questions : (sourceRun.clarification_questions ?? []),
-    clarification_question_sections: clarification_question_sections ?? sourceRun.clarification_question_sections,
+    clarification_questions,
+    clarification_question_sections,
     clarification_needed,
-    clarifications: sourceRun.clarifications ?? [],
+    clarifications: [],
     lens_outputs,
     decision_brief,
     lens_outputs_first_draft: lens_outputs,
